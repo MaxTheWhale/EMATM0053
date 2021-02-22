@@ -57,6 +57,9 @@ void setup() {
   line_centre.calibrate();
   line_right.calibrate();
 
+  setupEncoder1();
+  setupEncoder0();
+
 } // end of setup()
 
 #define ON_LINE_THRESHOLD 100
@@ -124,7 +127,10 @@ void loop() {
 //  Serial.print( line_right.read() );
 //  Serial.print( "\n" );
 
-  BangBang();
+  Serial.print(count_e0);
+  Serial.print(", ");
+  Serial.print(count_e1);
+  Serial.print("\n");
 
   delay(50);
   
