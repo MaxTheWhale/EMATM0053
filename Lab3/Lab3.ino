@@ -59,36 +59,51 @@ void setup() {
 
 } // end of setup()
 
+#define ON_LINE_THRESHOLD 100
+#define TURN_POWER 50.0f
+#define FORWARD_POWER 20.0f
+
+float confidence = 0.0f;
+
 void BangBang() {
   int left = line_left.read();
   int centre = line_centre.read();
   int right = line_right.read();
   float total = left + right + centre;
   float m = 0;
-  if (total > 100) {
+  int l_power = 0;
+  int r_power = 0;
+  if (line_centre.onLine()) {
+    digitalWrite(LED_BUILTIN, HIGH);
     float l_norm = left / total;
     float c_norm = centre / total;
     float r_norm = right / total;
     m = l_norm - r_norm;
+    int l_turn_bias = (int)(TURN_POWER * m);
+    int r_turn_bias = (int)(-TURN_POWER * m);
+    int forward_bias = (int)(FORWARD_POWER * (1.0f - abs(m)) * confidence);
+    l_power = l_turn_bias + forward_bias;
+    r_power = r_turn_bias + forward_bias;
+      // m = 1, l = 20, r = -20
+      // m = 0, l = 20, r = 20
+      // m = -1,l = -20,  r = 20
+      // bias is inversely proportional to m
+      // l_power = l_turn_bias + forward_bias
+      // l_turn_bias = TURN_POWER * m
+      // forward_bias = FORWARD_POWER * (1 - abs(m))
+    if (confidence < 1.0f) confidence += 0.01f;
+  } else {
+    digitalWrite(LED_BUILTIN, LOW);
+    confidence = 0.0f;
+    l_power = 20;
+    r_power = 20;
   }
   Serial.println(m);
-  bool left_black = (left > 300);
-  bool centre_black = (centre > 300);
-  bool right_black = (right > 300);
+  Serial.println(l_power);
+  Serial.println(r_power);
+  Serial.println();
 
-  int l_power = (int)(20.0f * m);
-  int r_power = (int)(-20.0f * m);
 
-  if (left_black && !right_black) {
-    l_power = -20;
-    r_power = 20;
-  } else if (right_black && !left_black) {
-    l_power = 20;
-    r_power = -20;
-  } else if (centre_black) {
-    l_power = 20;
-    r_power = 20;    
-  }
   left_motor.setPower(l_power);
   right_motor.setPower(r_power);
 }

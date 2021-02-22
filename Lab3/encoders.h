@@ -51,21 +51,22 @@ ISR( INT6_vect ) {
   // the direction.  However it illustrates well
   // against the lecture slides.
   if( state == 1 ) {           // row 1 from table
-    count_e1 = count_e1 + 1;
-
+    count_e1 += 1;
   } else if( state == 2 ) {    // row 2 from table
-    // ?
-
+    count_e1 -= 1;
   } else if( state == 4 ) {    // row 4 from table
-    // ?    
-
+    count_e1 -= 1;   
   } else if( state == 7 ) {
-    // ?
-
+    count_e1 += 1;
   } else if( state == 8 ) {
-    // ?
-
-  } // else if(  { // ...etc
+    count_e1 += 1;
+  } else if( state == 11 ) {
+    count_e1 -= 1;
+  } else if( state == 13 ) {
+    count_e1 -= 1;
+  } else if( state == 14 ) {
+    count_e1 += 1;
+  }
   
   
 
@@ -123,21 +124,22 @@ ISR( PCINT0_vect ) {
   // the direction.  However it illustrates well
   // against the lecture slides.  
   if( state == 1 ) {           // row 1 from table
-    count_e0 = count_e0 + 1;
-
+    count_e0 += 1;
   } else if( state == 2 ) {    // row 2 from table
-    // ?
-
+    count_e0 -= 1;
   } else if( state == 4 ) {    // row 4 from table
-    // ?    
-
+    count_e0 -= 1;   
   } else if( state == 7 ) {
-    // ?
-
+    count_e0 += 1;
   } else if( state == 8 ) {
-    // ?
-
-  } // else if(  { // ...etc
+    count_e0 += 1;
+  } else if( state == 11 ) {
+    count_e0 -= 1;
+  } else if( state == 13 ) {
+    count_e0 -= 1;
+  } else if( state == 14 ) {
+    count_e0 += 1;
+  }
      
   // Save current state as old state for next call.
   oldE0_A = newE0_A;

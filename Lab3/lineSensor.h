@@ -1,6 +1,10 @@
 #ifndef _LINESENSOR_H
 #define _LINESENSOR_H
 
+#ifndef LINE_THRESHOLD
+#define LINE_THRESHOLD 100
+#endif
+
 class lineSensor_c {
   
   public:
@@ -47,11 +51,11 @@ class lineSensor_c {
 
     // Write a routine here to check if your
     // sensor is on a line (true or false).
-    boolean onLine( float threshold ) {
+    boolean onLine() {
 
-      // if () {
-      //    return true;
-      //}
+      if (this->read() > LINE_THRESHOLD) {
+          return true;
+      }
              
       return false;
     }
