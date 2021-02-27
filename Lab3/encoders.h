@@ -6,15 +6,30 @@
 #define E0_A_PIN  26
 //E0_B_Pin is defined seperately later
 
+#define TIMER_FREQ 20
+
 // Volatile Global variables used by Encoder ISR.
 volatile long right_count; // used by encoder to count the rotation
+volatile long prev_right_count;
+volatile int  right_count_change;
+
 volatile bool oldE1_A;  // used by encoder to remember prior state of A
 volatile bool oldE1_B;  // used by encoder to remember prior state of B
 
+// Global volatile to hold the determined
+// speed of wheel fixed to encoder1
+volatile float right_speed;
 
 volatile long left_count; // used by encoder to count the rotation
+volatile long prev_left_count;
+volatile int  left_count_change;
+
 volatile bool oldE0_A;  // used by encoder to remember prior state of A
 volatile bool oldE0_B;  // used by encoder to remember prior state of B
+
+// Global volatile to hold the determined
+// speed of wheel fixed to encoder0
+volatile float left_speed;
 
 
 // This ISR handles just Encoder 1
@@ -50,25 +65,11 @@ ISR( INT6_vect ) {
   // This is an inefficient way of determining
   // the direction.  However it illustrates well
   // against the lecture slides.
-  if( state == 1 ) {           // row 1 from table
+  if( state == 1 || state == 7 || state == 8 || state == 14 ) {           // row 1 from table
     right_count -= 1;
-  } else if( state == 2 ) {    // row 2 from table
+  } else if( state == 2 || state == 4 || state == 11 || state == 13) {    // row 2 from table
     right_count += 1;
-  } else if( state == 4 ) {    // row 4 from table
-    right_count += 1;   
-  } else if( state == 7 ) {
-    right_count -= 1;
-  } else if( state == 8 ) {
-    right_count -= 1;
-  } else if( state == 11 ) {
-    right_count += 1;
-  } else if( state == 13 ) {
-    right_count += 1;
-  } else if( state == 14 ) {
-    right_count -= 1;
   }
-  
-  
 
   // Save current state as old state for next call.
   oldE1_A = newE1_A;
@@ -146,6 +147,21 @@ ISR( PCINT0_vect ) {
   oldE0_B = newE0_B; 
 }
 
+// The ISR routine.
+// The name TIMER3_COMPA_vect is a special flag to the 
+// compiler.  It automatically associates with Timer3 in
+// CTC mode.
+ISR( TIMER3_COMPA_vect ) {
+  right_count_change = right_count - prev_right_count;
+  left_count_change = left_count - prev_left_count;
+
+  right_speed = right_count_change * TIMER_FREQ;
+  left_speed = left_count_change * TIMER_FREQ;
+
+  prev_right_count = right_count;
+  prev_left_count = left_count;
+}
+
 
 
 
@@ -161,6 +177,7 @@ void setupEncoder1() {
 
   // Initialise our count value to 0.
   right_count = 0;
+  prev_right_count = 0;
   
   // Initialise the prior A & B signals
   // to zero, we don't know what they were.
@@ -204,6 +221,7 @@ void setupEncoder0() {
 
     // Initialise our count value to 0.
     left_count = 0;
+    prev_left_count = 0;
     
     // Initialise the prior A & B signals
     // to zero, we don't know what they were.
@@ -259,4 +277,42 @@ void setupEncoder0() {
 
     // Enable
     PCICR |= (1 << PCIE0);
+}
+
+// Routine to setupt timer3 to run 
+void setupTimer3() {
+
+  // disable global interrupts
+  cli();          
+
+  // Reset timer3 to a blank condition.
+  // TCCR = Timer/Counter Control Register
+  TCCR3A = 0;     // set entire TCCR3A register to 0
+  TCCR3B = 0;     // set entire TCCR3B register to 0
+
+  // First, turn on CTC mode.  Timer3 will count up
+  // and create an interrupt on a match to a value.
+  // See table 14.4 in manual, it is mode 4.
+  TCCR3B = TCCR3B | (1 << WGM32);
+
+  // For a cpu clock precaler of 256:
+  // Shift a 1 up to bit CS32 (clock select, timer 3, bit 2)
+  // Table 14.5 in manual. 
+  TCCR3B = TCCR3B | (1 << CS32);
+
+
+  // set compare match register to desired timer count.
+  // CPU Clock  = 16000000 (16mhz).
+  // Prescaler  = 256
+  // Timer freq = 16000000/256 = 62500
+  // We can think of this as timer3 counting up to 62500 in 1 second.
+  // compare match value = 62500 / 2 (we desire 2hz).
+  OCR3A = 62500 / TIMER_FREQ;
+
+  // enable timer compare interrupt:
+  TIMSK3 = TIMSK3 | (1 << OCIE3A);
+
+  // enable global interrupts:
+  sei(); 
+
 }

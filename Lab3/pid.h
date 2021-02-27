@@ -102,19 +102,19 @@ float PID_c::update(float demand, float measurement) {
   float time_delta = (float)diff_time;
 
   // Calculate error between demand and measurement.
-  //float error = ????;
+  float error = demand - measurement;
 
   //This represents the error derivative
-  // float error_delta = ?????;
-  // last_error = ????;
+  float error_delta = (error - last_error) / time_delta;
+  last_error = error;
 
   // Integral term.
-  // integral_error += ????;
+  integral_error += error;
 
   //Calculate P,I,D Term contributions.
-  // Kp_output = ????;
-  // Kd_output = ????; 
-  // Ki_output = ????; 
+  Kp_output = error * Kp;
+  Kd_output = error_delta * Kd; 
+  Ki_output = integral_error * Ki; 
 
   //Add the three components to get the total output
   output_signal = Kp_output + Kd_output + Ki_output;

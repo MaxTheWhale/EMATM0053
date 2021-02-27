@@ -39,9 +39,21 @@ lineSensor_c line_right( LINE_RIGHT_PIN ); //Create a line sensor object for the
 motor_c left_motor( L_PWM_PIN, L_DIR_PIN );
 motor_c right_motor( R_PWM_PIN, R_DIR_PIN );
 
-long prev_left_count, prev_right_count;
+// Experiment with your gains slowly, one by one.
+float Kp_left = 0.06f; //Proportional gain 
+float Kd_left = -1.0f; //Derivative gain
+float Ki_left = 0.003f; //Integral gain
+PID_c left_PID(Kp_left, Ki_left, Kd_left); // controller for left wheel
+
+// Experiment with your gains slowly, one by one.
+float Kp_right = 0.045f; //Proportional gain 
+float Kd_right = -1.0f; //Derivative gain
+float Ki_right = 0.003f; //Integral gain
+PID_c right_PID(Kp_right, Ki_right, Kd_right); // controller for right wheel
+
+long prev_loop_left_count, prev_loop_right_count;
 unsigned long timestamp;
-float current_speed;
+float loop_left_speed, loop_right_speed;
 
 // Setup, only runs once when the power
 // is turned on.  However, if your Romi
@@ -63,10 +75,12 @@ void setup() {
 
   setupEncoder1();
   setupEncoder0();
+  setupTimer3();
 
-  prev_left_count = 0;
-  prev_right_count = 0;
-  current_speed = 0.0f;
+  prev_loop_left_count = 0;
+  prev_loop_right_count = 0;
+  loop_left_speed = 0.0f;
+  loop_right_speed = 0.0f;
   timestamp = 0;
 
 } // end of setup()
@@ -120,6 +134,9 @@ void BangBang() {
   right_motor.setPower(r_power);
 }
 
+unsigned long switch_millis = 0;
+float demand = 1000.0f;
+
 // The main loop of execution.  This loop()
 // function is automatically called every
 // time it finishes.  You should try to write
@@ -149,10 +166,11 @@ void loop() {
 
   unsigned int elapsed_time = micros() - timestamp;
 
-  int left_change = left_count - prev_left_count;
-  int right_change = right_count - prev_right_count;
+  int left_change = left_count - prev_loop_left_count;
+  int right_change = right_count - prev_loop_right_count;
 
-  current_speed = (((left_change + right_change) / 2) / (float)elapsed_time) * 1000000;
+  loop_left_speed = left_change / (float)elapsed_time * 1000000;
+  loop_right_speed = right_change / (float)elapsed_time * 1000000;
   // current_speed *= 0.0001527163f;
 
   // encoder counts / microseconds
@@ -161,12 +179,29 @@ void loop() {
   // 1 count = 0.152716mm = 0.000152716m
   
 
-  prev_left_count = left_count;
-  prev_right_count = right_count;
+  prev_loop_left_count = left_count;
+  prev_loop_right_count = right_count;
 
   timestamp = micros();
 
-  Serial.println(current_speed);
+  //    output_signal <----PID-- demand, measurement
+  float output_left = left_PID.update(demand, left_speed);
+  float output_right = right_PID.update(demand, right_speed);
+
+  Serial.print("From loop: ");
+  Serial.print(loop_left_speed);
+  Serial.print("   From ISR: ");
+  Serial.print(left_speed);
+  Serial.print("   PID output: ");
+  Serial.println(output_left);
+
+  left_motor.setPower(output_left);
+  right_motor.setPower(output_right);
+
+  if (millis() > switch_millis + 4000) {
+    demand = -demand;
+    switch_millis = millis();
+  }
 
   delay(50);
 
