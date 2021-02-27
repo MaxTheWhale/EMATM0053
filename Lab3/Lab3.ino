@@ -40,14 +40,14 @@ motor_c left_motor( L_PWM_PIN, L_DIR_PIN );
 motor_c right_motor( R_PWM_PIN, R_DIR_PIN );
 
 // Experiment with your gains slowly, one by one.
-float Kp_left = 0.06f; //Proportional gain 
-float Kd_left = -1.0f; //Derivative gain
+float Kp_left = 0.05f; //Proportional gain 
+float Kd_left = -0.3f; //Derivative gain
 float Ki_left = 0.003f; //Integral gain
 PID_c left_PID(Kp_left, Ki_left, Kd_left); // controller for left wheel
 
 // Experiment with your gains slowly, one by one.
 float Kp_right = 0.045f; //Proportional gain 
-float Kd_right = -1.0f; //Derivative gain
+float Kd_right = -0.3f; //Derivative gain
 float Ki_right = 0.003f; //Integral gain
 PID_c right_PID(Kp_right, Ki_right, Kd_right); // controller for right wheel
 
@@ -188,11 +188,11 @@ void loop() {
   float output_left = left_PID.update(demand, left_speed);
   float output_right = right_PID.update(demand, right_speed);
 
-  Serial.print("From loop: ");
+  //Serial.print("From loop: ");
   Serial.print(loop_left_speed);
-  Serial.print("   From ISR: ");
+  Serial.print(",");
   Serial.print(left_speed);
-  Serial.print("   PID output: ");
+  Serial.print(",");
   Serial.println(output_left);
 
   left_motor.setPower(output_left);
@@ -203,7 +203,7 @@ void loop() {
     switch_millis = millis();
   }
 
-  delay(50);
+  delay(100);
 
   
 } // end of loop()
