@@ -7,12 +7,12 @@
 //E0_B_Pin is defined seperately later
 
 // Volatile Global variables used by Encoder ISR.
-volatile long count_e1; // used by encoder to count the rotation
+volatile long right_count; // used by encoder to count the rotation
 volatile bool oldE1_A;  // used by encoder to remember prior state of A
 volatile bool oldE1_B;  // used by encoder to remember prior state of B
 
 
-volatile long count_e0; // used by encoder to count the rotation
+volatile long left_count; // used by encoder to count the rotation
 volatile bool oldE0_A;  // used by encoder to remember prior state of A
 volatile bool oldE0_B;  // used by encoder to remember prior state of B
 
@@ -51,21 +51,21 @@ ISR( INT6_vect ) {
   // the direction.  However it illustrates well
   // against the lecture slides.
   if( state == 1 ) {           // row 1 from table
-    count_e1 -= 1;
+    right_count -= 1;
   } else if( state == 2 ) {    // row 2 from table
-    count_e1 += 1;
+    right_count += 1;
   } else if( state == 4 ) {    // row 4 from table
-    count_e1 += 1;   
+    right_count += 1;   
   } else if( state == 7 ) {
-    count_e1 -= 1;
+    right_count -= 1;
   } else if( state == 8 ) {
-    count_e1 -= 1;
+    right_count -= 1;
   } else if( state == 11 ) {
-    count_e1 += 1;
+    right_count += 1;
   } else if( state == 13 ) {
-    count_e1 += 1;
+    right_count += 1;
   } else if( state == 14 ) {
-    count_e1 -= 1;
+    right_count -= 1;
   }
   
   
@@ -124,21 +124,21 @@ ISR( PCINT0_vect ) {
   // the direction.  However it illustrates well
   // against the lecture slides.  
   if( state == 1 ) {           // row 1 from table
-    count_e0 -= 1;
+    left_count -= 1;
   } else if( state == 2 ) {    // row 2 from table
-    count_e0 += 1;
+    left_count += 1;
   } else if( state == 4 ) {    // row 4 from table
-    count_e0 += 1;   
+    left_count += 1;   
   } else if( state == 7 ) {
-    count_e0 -= 1;
+    left_count -= 1;
   } else if( state == 8 ) {
-    count_e0 -= 1;
+    left_count -= 1;
   } else if( state == 11 ) {
-    count_e0 += 1;
+    left_count += 1;
   } else if( state == 13 ) {
-    count_e0 += 1;
+    left_count += 1;
   } else if( state == 14 ) {
-    count_e0 -= 1;
+    left_count -= 1;
   }
      
   // Save current state as old state for next call.
@@ -160,7 +160,7 @@ ISR( PCINT0_vect ) {
 void setupEncoder1() {
 
   // Initialise our count value to 0.
-  count_e1 = 0;
+  right_count = 0;
   
   // Initialise the prior A & B signals
   // to zero, we don't know what they were.
@@ -203,7 +203,7 @@ void setupEncoder1() {
 void setupEncoder0() {
 
     // Initialise our count value to 0.
-    count_e0 = 0;
+    left_count = 0;
     
     // Initialise the prior A & B signals
     // to zero, we don't know what they were.

@@ -39,6 +39,10 @@ lineSensor_c line_right( LINE_RIGHT_PIN ); //Create a line sensor object for the
 motor_c left_motor( L_PWM_PIN, L_DIR_PIN );
 motor_c right_motor( R_PWM_PIN, R_DIR_PIN );
 
+long prev_left_count, prev_right_count;
+unsigned long timestamp;
+float current_speed;
+
 // Setup, only runs once when the power
 // is turned on.  However, if your Romi
 // gets reset, it will run again.
@@ -59,6 +63,11 @@ void setup() {
 
   setupEncoder1();
   setupEncoder0();
+
+  prev_left_count = 0;
+  prev_right_count = 0;
+  current_speed = 0.0f;
+  timestamp = 0;
 
 } // end of setup()
 
@@ -127,11 +136,39 @@ void loop() {
 //  Serial.print( line_right.read() );
 //  Serial.print( "\n" );
 
-  Serial.print(count_e0);
-  Serial.print(", ");
-  Serial.print(count_e1);
-  Serial.print("\n");
+  // Serial.print(left_count);
+  // Serial.print(", ");
+  // Serial.print(right_count);
+  // Serial.print("\n");
+
+//  delay(50);
+  // if (left_count < 2000) left_motor.setPower(50);
+  // else left_motor.setPower(0);
+  // if (right_count < 2000) right_motor.setPower(50);
+  // else right_motor.setPower(0);
+
+  unsigned int elapsed_time = micros() - timestamp;
+
+  int left_change = left_count - prev_left_count;
+  int right_change = right_count - prev_right_count;
+
+  current_speed = (((left_change + right_change) / 2) / (float)elapsed_time) * 1000000;
+  // current_speed *= 0.0001527163f;
+
+  // encoder counts / microseconds
+  // * 1000000
+  // encoder_counts / seconds
+  // 1 count = 0.152716mm = 0.000152716m
+  
+
+  prev_left_count = left_count;
+  prev_right_count = right_count;
+
+  timestamp = micros();
+
+  Serial.println(current_speed);
 
   delay(50);
+
   
 } // end of loop()

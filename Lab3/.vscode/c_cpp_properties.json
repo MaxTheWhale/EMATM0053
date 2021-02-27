@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "/home/max/Downloads/arduino-1.8.10/tools/**",
+                "/home/max/Arduino/libraries/**",
+                "/home/max/Downloads/arduino-1.8.10/libraries/**",
+                "/home/max/Downloads/arduino-1.8.10/hardware/tools/**",
+                "/home/max/Downloads/arduino-1.8.10/hardware/arduino/avr/**"
+            ],
+            "forcedInclude": [
+                "/home/max/Downloads/arduino-1.8.10/hardware/arduino/avr/cores/arduino/Arduino.h"
+            ],
+            "defines": [
+                "USBCON"
+            ],
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerPath": "/usr/bin/clang"
+        }
+    ],
+    "version": 4
+}
