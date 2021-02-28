@@ -134,7 +134,12 @@ void BangBang() {
   right_motor.setPower(r_power);
 }
 
+#define PID_UPDATE_PERIOD 100
+#define SPEED_UPDATE_PERIOD 50
+
 unsigned long switch_millis = 0;
+unsigned long pid_update_millis = 0;
+unsigned long speed_update_millis = 0;
 float demand = 1000.0f;
 
 // The main loop of execution.  This loop()
@@ -164,46 +169,54 @@ void loop() {
   // if (right_count < 2000) right_motor.setPower(50);
   // else right_motor.setPower(0);
 
-  unsigned int elapsed_time = micros() - timestamp;
-
-  int left_change = left_count - prev_loop_left_count;
-  int right_change = right_count - prev_loop_right_count;
-
-  loop_left_speed = left_change / (float)elapsed_time * 1000000;
-  loop_right_speed = right_change / (float)elapsed_time * 1000000;
-  // current_speed *= 0.0001527163f;
-
-  // encoder counts / microseconds
-  // * 1000000
-  // encoder_counts / seconds
-  // 1 count = 0.152716mm = 0.000152716m
   
 
-  prev_loop_left_count = left_count;
-  prev_loop_right_count = right_count;
-
-  timestamp = micros();
-
-  //    output_signal <----PID-- demand, measurement
-  float output_left = left_PID.update(demand, left_speed);
-  float output_right = right_PID.update(demand, right_speed);
-
   //Serial.print("From loop: ");
-  Serial.print(loop_left_speed);
-  Serial.print(",");
-  Serial.print(left_speed);
-  Serial.print(",");
-  Serial.println(output_left);
 
-  left_motor.setPower(output_left);
-  right_motor.setPower(output_right);
+  unsigned long this_millis = millis();
 
-  if (millis() > switch_millis + 4000) {
-    demand = -demand;
-    switch_millis = millis();
+  if (this_millis > speed_update_millis + SPEED_UPDATE_PERIOD) {
+    unsigned int elapsed_time = micros() - timestamp;
+
+    int left_change = left_count - prev_loop_left_count;
+    int right_change = right_count - prev_loop_right_count;
+
+    loop_left_speed = left_change / (float)elapsed_time * 1000000;
+    loop_right_speed = right_change / (float)elapsed_time * 1000000;
+    // current_speed *= 0.0001527163f;
+
+    // encoder counts / microseconds
+    // * 1000000
+    // encoder_counts / seconds
+    // 1 count = 0.152716mm = 0.000152716m
+    
+
+    prev_loop_left_count = left_count;
+    prev_loop_right_count = right_count;
+
+    timestamp = micros();
   }
 
-  delay(100);
+  if (this_millis > switch_millis + 4000) {
+    demand = -demand;
+    switch_millis = this_millis;
+  }
 
+  if (this_millis > pid_update_millis + PID_UPDATE_PERIOD) {
+    //    output_signal <----PID-- demand, measurement
+    float output_left = left_PID.update(demand, left_speed);
+    float output_right = right_PID.update(demand, right_speed);
+
+    Serial.print(loop_left_speed);
+    Serial.print(",");
+    Serial.print(left_speed);
+    Serial.print(",");
+    Serial.println(output_left);
+
+    left_motor.setPower(output_left);
+    right_motor.setPower(output_right);
+
+    pid_update_millis = this_millis;
+  }
   
 } // end of loop()

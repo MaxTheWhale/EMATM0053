@@ -1,6 +1,6 @@
 {
     "board": "arduino:avr:leonardo",
     "port": "/dev/ttyACM0",
-    "programmer": "AVR ISP",
+    "programmer": "AVRISP mkII",
     "sketch": "Lab3.ino"
 }
