@@ -51,6 +51,12 @@ float Kd_right = -0.3f; //Derivative gain
 float Ki_right = 0.003f; //Integral gain
 PID_c right_PID(Kp_right, Ki_right, Kd_right); // controller for right wheel
 
+// Experiment with your gains slowly, one by one.
+float Kp_heading = 400.0f; //Proportional gain 
+float Kd_heading = 0.0f; //Derivative gain
+float Ki_heading = 0.0f; //Integral gain
+PID_c heading_PID(Kp_heading, Ki_heading, Kd_heading); // controller for heading
+
 long prev_loop_left_count, prev_loop_right_count;
 unsigned long timestamp;
 float loop_left_speed, loop_right_speed;
@@ -134,6 +140,22 @@ void BangBang() {
   right_motor.setPower(r_power);
 }
 
+float calculate_m() {
+  int left = line_left.read();
+  int centre = line_centre.read();
+  int right = line_right.read();
+  float total = left + right + centre;
+  float m = 0;
+  if (total > 100) {
+    float l_norm = left / total;
+    float r_norm = right / total;
+    m = l_norm - r_norm;
+    if (m < -1.0f || m > 1.0f) Serial.println("calculate_m: bad m value");
+  }
+
+  return m;
+}
+
 #define PID_UPDATE_PERIOD 100
 #define SPEED_UPDATE_PERIOD 50
 
@@ -204,19 +226,22 @@ void loop() {
 
   if (this_millis > pid_update_millis + PID_UPDATE_PERIOD) {
     //    output_signal <----PID-- demand, measurement
-    float output_left = left_PID.update(demand, left_speed);
-    float output_right = right_PID.update(demand, right_speed);
+    float turn_demand = heading_PID.update(0, calculate_m());
+    float output_left = left_PID.update(200 + turn_demand, left_speed);
+    float output_right = right_PID.update(200 - turn_demand, right_speed);
 
-    Serial.print(loop_left_speed);
-    Serial.print(",");
-    Serial.print(left_speed);
-    Serial.print(",");
-    Serial.println(output_left);
+    // Serial.print(turn_demand);
+    // Serial.print(",");
+    // Serial.print(output_left);
+    // Serial.print(",");
+    // Serial.println(output_right);
 
     left_motor.setPower(output_left);
     right_motor.setPower(output_right);
 
     pid_update_millis = this_millis;
+
+    Serial.println(calculate_m());
   }
   
 } // end of loop()
