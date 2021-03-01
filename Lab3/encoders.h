@@ -60,14 +60,9 @@ ISR( INT6_vect ) {
   state = state | ( oldE1_A  << 1 );
   state = state | ( oldE1_B  << 0 );
 
-  
-
-  // This is an inefficient way of determining
-  // the direction.  However it illustrates well
-  // against the lecture slides.
-  if( state == 1 || state == 7 || state == 8 || state == 14 ) {           // row 1 from table
+  if( state == 1 || state == 7 || state == 8 || state == 14 ) {
     right_count -= 1;
-  } else if( state == 2 || state == 4 || state == 11 || state == 13) {    // row 2 from table
+  } else if( state == 2 || state == 4 || state == 11 || state == 13) {
     right_count += 1;
   }
 
@@ -121,25 +116,10 @@ ISR( PCINT0_vect ) {
 
 
 
-  // This is an inefficient way of determining
-  // the direction.  However it illustrates well
-  // against the lecture slides.  
-  if( state == 1 ) {           // row 1 from table
+  if( state == 1 || state == 7 || state == 8 || state == 14 ) {
     left_count -= 1;
-  } else if( state == 2 ) {    // row 2 from table
+  } else if( state == 2 || state == 4 || state == 11 || state == 13) {
     left_count += 1;
-  } else if( state == 4 ) {    // row 4 from table
-    left_count += 1;   
-  } else if( state == 7 ) {
-    left_count -= 1;
-  } else if( state == 8 ) {
-    left_count -= 1;
-  } else if( state == 11 ) {
-    left_count += 1;
-  } else if( state == 13 ) {
-    left_count += 1;
-  } else if( state == 14 ) {
-    left_count -= 1;
   }
      
   // Save current state as old state for next call.

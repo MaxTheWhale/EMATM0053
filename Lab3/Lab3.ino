@@ -61,6 +61,24 @@ long prev_loop_left_count, prev_loop_right_count;
 unsigned long timestamp;
 float loop_left_speed, loop_right_speed;
 
+// States
+#define STATE_INITIAL           0
+#define STATE_DRIVE_FORWARDS    1
+#define STATE_CENTRE_LINE       2
+#define STATE_FOLLOW_LINE       3
+#define STATE_CHECK_RIGHT_ANGLE 4
+#define STATE_RETURN_HOME       5
+#define STATE_DONE              6
+
+int state;
+
+#define PID_UPDATE_PERIOD 100
+#define SPEED_UPDATE_PERIOD 50
+
+unsigned long pid_update_millis = 0;
+unsigned long speed_update_millis = 0;
+float demand_left, demand_right;
+
 // Setup, only runs once when the power
 // is turned on.  However, if your Romi
 // gets reset, it will run again.
@@ -89,7 +107,12 @@ void setup() {
   loop_right_speed = 0.0f;
   timestamp = 0;
 
-} // end of setup()
+  demand_left = 0.0f;
+  demand_right = 0.0f;
+
+  state = STATE_INITIAL;
+
+}
 
 #define ON_LINE_THRESHOLD 100
 #define TURN_POWER 50.0f
@@ -156,45 +179,12 @@ float calculate_m() {
   return m;
 }
 
-#define PID_UPDATE_PERIOD 100
-#define SPEED_UPDATE_PERIOD 50
-
-unsigned long switch_millis = 0;
-unsigned long pid_update_millis = 0;
-unsigned long speed_update_millis = 0;
-float demand = 1000.0f;
-
 // The main loop of execution.  This loop()
 // function is automatically called every
 // time it finishes.  You should try to write
 // your code to take advantage of this looping
 // behaviour.  
 void loop() {
-
-  // To send data back to your computer.
-  // You can open either Serial monitor or plotter.
-//  Serial.print( line_left.read() );
-//  Serial.print( ", " );
-//  Serial.print( line_centre.read() );
-//  Serial.print( ", " );
-//  Serial.print( line_right.read() );
-//  Serial.print( "\n" );
-
-  // Serial.print(left_count);
-  // Serial.print(", ");
-  // Serial.print(right_count);
-  // Serial.print("\n");
-
-//  delay(50);
-  // if (left_count < 2000) left_motor.setPower(50);
-  // else left_motor.setPower(0);
-  // if (right_count < 2000) right_motor.setPower(50);
-  // else right_motor.setPower(0);
-
-  
-
-  //Serial.print("From loop: ");
-
   unsigned long this_millis = millis();
 
   if (this_millis > speed_update_millis + SPEED_UPDATE_PERIOD) {
@@ -205,13 +195,6 @@ void loop() {
 
     loop_left_speed = left_change / (float)elapsed_time * 1000000;
     loop_right_speed = right_change / (float)elapsed_time * 1000000;
-    // current_speed *= 0.0001527163f;
-
-    // encoder counts / microseconds
-    // * 1000000
-    // encoder_counts / seconds
-    // 1 count = 0.152716mm = 0.000152716m
-    
 
     prev_loop_left_count = left_count;
     prev_loop_right_count = right_count;
@@ -219,29 +202,51 @@ void loop() {
     timestamp = micros();
   }
 
-  if (this_millis > switch_millis + 4000) {
-    demand = -demand;
-    switch_millis = this_millis;
-  }
-
   if (this_millis > pid_update_millis + PID_UPDATE_PERIOD) {
     //    output_signal <----PID-- demand, measurement
-    float turn_demand = heading_PID.update(0, calculate_m());
-    float output_left = left_PID.update(200 + turn_demand, left_speed);
-    float output_right = right_PID.update(200 - turn_demand, right_speed);
-
-    // Serial.print(turn_demand);
-    // Serial.print(",");
-    // Serial.print(output_left);
-    // Serial.print(",");
-    // Serial.println(output_right);
+    // float turn_demand = heading_PID.update(0, calculate_m());
+    float output_left = left_PID.update(demand_left, left_speed);
+    float output_right = right_PID.update(demand_right, right_speed);
 
     left_motor.setPower(output_left);
     right_motor.setPower(output_right);
 
     pid_update_millis = this_millis;
+  }
 
-    Serial.println(calculate_m());
+  // Based on the value of STATE variable,
+  // run code for the appropriate robot behaviour.
+  if ( state == STATE_INITIAL ) {
+    state = STATE_DRIVE_FORWARDS;
+  } else if ( state == STATE_DRIVE_FORWARDS ) {
+    demand_left = 200.0f;
+    demand_right = 200.0f;
+    if (line_centre.onLine()) {
+      state = STATE_CENTRE_LINE;
+    }
+  } else if ( state == STATE_CENTRE_LINE ) {
+    // Turn, move very slowly
+  } else if ( state == STATE_FOLLOW_LINE ) {
+    // Follow line with heading controller (confidence forward bias?)
+    if (!line_left.onLine() && !line_centre.onLine() && !line_right.onLine()) {
+      state = STATE_CHECK_RIGHT_ANGLE;
+    }
+  } else if ( state == STATE_CHECK_RIGHT_ANGLE ) {
+    // Turn 90 degrees left, then 90 degrees right, then back to centre
+    // If the line is seen at any point stop
+    if (line_centre.onLine()) {
+      state = STATE_CENTRE_LINE;
+    }
+    if (1) { // if check finished
+      state = STATE_DRIVE_FORWARDS;
+    }
+  } else if ( state == STATE_RETURN_HOME ) {
+    // Need kinematics magic
+  } else if ( state == STATE_DONE ) {
+    // Do nothing!
+  } else {
+    Serial.print("System Error, Unknown state: ");
+    Serial.println(state);
   }
   
-} // end of loop()
+}

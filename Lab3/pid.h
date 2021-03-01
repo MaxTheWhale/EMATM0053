@@ -4,7 +4,7 @@
 class PID_c {
   public:
 
-    PID_c(float P, float I, float D);                 // Constructor, not order of P I & D arguments when calling.
+    PID_c(float P, float I, float D);               // Constructor, not order of P I & D arguments when calling.
     void setGains(float P, float I, float D);       // This function updates the values of the gains
     void reset();                                   // Useful to remove any intergral wind-up
     float update(float demand, float measurement);  // This update takes a demand and measurement.

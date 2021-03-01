@@ -10,17 +10,19 @@ class lineSensor_c {
   public:
 
     int pin;
-    int bias = 0;
+    int bias;
 
     // Constructor, accepts a pin number as
     // argument and sets this as input.
     lineSensor_c( int which_pin ) {
 
-       // Record which pin we used.
-       pin = which_pin;
+      // Record which pin we used.
+      pin = which_pin;
 
-       // Set this pin to input.
-       pinMode( pin, INPUT );
+      bias = 0;
+
+      // Set this pin to input.
+      pinMode( pin, INPUT );
     };
 
 
@@ -59,10 +61,6 @@ class lineSensor_c {
              
       return false;
     }
-
-    // You can define other functions for
-    // yourself. 
-    // ...
 
 };
 
