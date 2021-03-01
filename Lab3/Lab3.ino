@@ -57,6 +57,8 @@ float Kd_heading = 0.0f; //Derivative gain
 float Ki_heading = 0.0f; //Integral gain
 PID_c heading_PID(Kp_heading, Ki_heading, Kd_heading); // controller for heading
 
+kinematics_c pose;
+
 long prev_loop_left_count, prev_loop_right_count;
 unsigned long timestamp;
 float loop_left_speed, loop_right_speed;
@@ -74,9 +76,11 @@ int state;
 
 #define PID_UPDATE_PERIOD 100
 #define SPEED_UPDATE_PERIOD 50
+#define KINEMATICS_UPDATE_PERIOD 50
 
 unsigned long pid_update_millis = 0;
 unsigned long speed_update_millis = 0;
+unsigned long kinematics_update_millis = 0;
 float demand_left, demand_right;
 
 // Setup, only runs once when the power
@@ -199,7 +203,16 @@ void loop() {
     prev_loop_left_count = left_count;
     prev_loop_right_count = right_count;
 
+    pose.update(left_change, right_change);
+
+    Serial.print(pose.x);
+    Serial.print(',');
+    Serial.print(pose.y);
+    Serial.print(',');
+    Serial.println(pose.theta);
+
     timestamp = micros();
+    speed_update_millis = this_millis;
   }
 
   if (this_millis > pid_update_millis + PID_UPDATE_PERIOD) {
@@ -208,10 +221,16 @@ void loop() {
     float output_left = left_PID.update(demand_left, left_speed);
     float output_right = right_PID.update(demand_right, right_speed);
 
-    left_motor.setPower(output_left);
-    right_motor.setPower(output_right);
+    // left_motor.setPower(output_left);
+    // right_motor.setPower(output_right);
 
     pid_update_millis = this_millis;
+  }
+
+  if (this_millis > kinematics_update_millis + KINEMATICS_UPDATE_PERIOD) {
+    
+
+    kinematics_update_millis = this_millis;
   }
 
   // Based on the value of STATE variable,
