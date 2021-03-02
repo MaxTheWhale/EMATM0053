@@ -87,7 +87,19 @@ float desired_angle = M_PI - 0.1f;
 float target_x = 5000.0f;
 float target_y = 2500.0f;
 
-bool heading_home = false;
+#define HEADING_NONE        0
+#define HEADING_LINE_SENSOR 1
+#define HEADING_ANGLE       2
+
+int heading_measurement;
+
+#define NO_TURN       0
+#define TURNING_RIGHT 1
+#define TURNING_LEFT  2
+
+int right_angle_state;
+float original_theta;
+
 bool stopped = false;
 
 // Setup, only runs once when the power
@@ -121,8 +133,8 @@ void setup() {
   demand_left = 0.0f;
   demand_right = 0.0f;
 
-  state = STATE_DRIVE_FORWARDS;
-  heading_home = true;
+  state = STATE_INITIAL;
+  heading_measurement = HEADING_NONE;
 }
 
 #define ON_LINE_THRESHOLD 100
@@ -183,7 +195,7 @@ float calculate_m() {
   if (total > 100) {
     float l_norm = left / total;
     float r_norm = right / total;
-    m = l_norm - r_norm;
+    m = r_norm - l_norm;
     if (m < -1.0f || m > 1.0f) Serial.println("calculate_m: bad m value");
   }
 
@@ -195,8 +207,15 @@ void stop() {
   demand_right = 0.0f;
   left_PID.reset();
   right_PID.reset();
-  heading_home = false;
   stopped = true;
+}
+
+float wrap_angle(float theta) {
+  while (theta > M_PI || theta < -M_PI) {
+    if (theta > M_PI) theta -= 2.0f * M_PI;
+    if (theta < -M_PI) theta += 2.0f * M_PI;
+  }
+  return theta;
 }
 
 // The main loop of execution.  This loop()
@@ -232,15 +251,15 @@ void loop() {
   }
 
   if (this_millis > pid_update_millis + PID_UPDATE_PERIOD) {
-    //    output_signal <----PID-- demand, measurement
-    // float turn_demand = heading_PID.update(0, calculate_m());
 
     float turn_demand = 0.0f;
-    if (heading_home) {
+    if (heading_measurement == HEADING_ANGLE) {
       float dx = target_x - pose.x;
       float dy = target_y - pose.y;
       float required_angle = atan2f(dy, dx);
       turn_demand = heading_PID.update(required_angle, pose.theta);
+    } else if (heading_measurement == HEADING_LINE_SENSOR) {
+      turn_demand = heading_PID.update(0, calculate_m());
     }
 
     if (!stopped) {
@@ -254,6 +273,8 @@ void loop() {
       right_motor.setPower(0);
     }
 
+    confidence += 0.01f;
+
     pid_update_millis = this_millis;
   }
 
@@ -266,35 +287,40 @@ void loop() {
   // Based on the value of STATE variable,
   // run code for the appropriate robot behaviour.
   if ( state == STATE_INITIAL ) {
-    // state = STATE_DRIVE_FORWARDS;
-    float dx = target_x - pose.x;
-    float dy = target_y - pose.y;
-    float required_angle = atan2f(dy, dx);
-    float angle_left = required_angle - pose.theta;
-    if (angle_left > M_PI) angle_left = -2 * M_PI + angle_left;
-    if (angle_left < -M_PI) angle_left = 2 * M_PI + angle_left;
-    if (angle_left > 0.05f || angle_left < -0.05f) {
-      int direction = (angle_left > 0.0f) ? 1 : -1;
-      demand_left = 500.0f * -direction;
-      demand_right = 500.0f * direction;
-    } else {
-      state = STATE_DRIVE_FORWARDS;
-      heading_home = true;
-    }
+    state = STATE_DRIVE_FORWARDS;
   } else if ( state == STATE_DRIVE_FORWARDS ) {
     demand_left = 500.0f;
     demand_right = 500.0f;
-    float dx = target_x - pose.x;
-    float dy = target_y - pose.y;
-    if (abs(dx) + abs(dy) < 200) {
+    if (line_centre.onLine()) {
       state = STATE_CENTRE_LINE;
-      stop();
+      heading_measurement = HEADING_LINE_SENSOR;
+      left_PID.reset();
+      right_PID.reset();
+      demand_left = 0.0f;
+      demand_right = 0.0f;
+      confidence = 0.0f;
     }
-    // if (line_centre.onLine()) {
-    //   state = STATE_CENTRE_LINE;
-    // }
   } else if ( state == STATE_CENTRE_LINE ) {
-    // Turn, move very slowly
+    bool left = line_left.onLine();
+    bool centre = line_centre.onLine();
+    bool right = line_right.onLine();
+
+    digitalWrite(LED_BUILTIN, (centre) ? HIGH : LOW);
+    digitalWrite(30, (left) ? LOW : HIGH);
+    digitalWrite(17, (right) ? LOW : HIGH);
+    if (!centre && !left && !right) {
+      confidence = 0.0f;
+      state = STATE_CHECK_RIGHT_ANGLE;
+      right_angle_state = TURNING_RIGHT;
+      original_theta = pose.theta;
+      demand_left = 0.0f;
+      demand_right = 0.0f;
+      left_PID.reset();
+      right_PID.reset();
+    } else {
+      demand_left = 500.0f * confidence;
+      demand_right = 500.0f * confidence;
+    }
   } else if ( state == STATE_FOLLOW_LINE ) {
     // Follow line with heading controller (confidence forward bias?)
     if (!line_left.onLine() && !line_centre.onLine() && !line_right.onLine()) {
@@ -303,8 +329,31 @@ void loop() {
   } else if ( state == STATE_CHECK_RIGHT_ANGLE ) {
     // Turn 90 degrees left, then 90 degrees right, then back to centre
     // If the line is seen at any point stop
+
+    if (right_angle_state == TURNING_RIGHT) {
+      demand_left = 500.0f;
+      demand_right = -500.0f;
+
+      if (abs(wrap_angle(original_theta - M_PI_2) - pose.theta) < 0.1f) {
+        right_angle_state = TURNING_LEFT;
+      }
+    } else if (right_angle_state == TURNING_LEFT) {
+      demand_left = -500.0f;
+      demand_right = 500.0f;
+
+      if (abs(wrap_angle(original_theta + M_PI_2) - pose.theta) < 0.1f) {
+        state = STATE_DRIVE_FORWARDS;
+      }
+    }
+
     if (line_centre.onLine()) {
       state = STATE_CENTRE_LINE;
+      heading_measurement = HEADING_LINE_SENSOR;
+      left_PID.reset();
+      right_PID.reset();
+      demand_left = 0.0f;
+      demand_right = 0.0f;
+      confidence = 0.0f;
     }
     if (1) { // if check finished
       state = STATE_DRIVE_FORWARDS;
