@@ -83,6 +83,13 @@ unsigned long speed_update_millis = 0;
 unsigned long kinematics_update_millis = 0;
 float demand_left, demand_right;
 
+float desired_angle = M_PI - 0.1f;
+float target_x = 5000.0f;
+float target_y = 2500.0f;
+
+bool heading_home = false;
+bool stopped = false;
+
 // Setup, only runs once when the power
 // is turned on.  However, if your Romi
 // gets reset, it will run again.
@@ -114,8 +121,8 @@ void setup() {
   demand_left = 0.0f;
   demand_right = 0.0f;
 
-  state = STATE_INITIAL;
-
+  state = STATE_DRIVE_FORWARDS;
+  heading_home = true;
 }
 
 #define ON_LINE_THRESHOLD 100
@@ -183,6 +190,15 @@ float calculate_m() {
   return m;
 }
 
+void stop() {
+  demand_left = 0.0f;
+  demand_right = 0.0f;
+  left_PID.reset();
+  right_PID.reset();
+  heading_home = false;
+  stopped = true;
+}
+
 // The main loop of execution.  This loop()
 // function is automatically called every
 // time it finishes.  You should try to write
@@ -218,11 +234,25 @@ void loop() {
   if (this_millis > pid_update_millis + PID_UPDATE_PERIOD) {
     //    output_signal <----PID-- demand, measurement
     // float turn_demand = heading_PID.update(0, calculate_m());
-    float output_left = left_PID.update(demand_left, left_speed);
-    float output_right = right_PID.update(demand_right, right_speed);
 
-    // left_motor.setPower(output_left);
-    // right_motor.setPower(output_right);
+    float turn_demand = 0.0f;
+    if (heading_home) {
+      float dx = target_x - pose.x;
+      float dy = target_y - pose.y;
+      float required_angle = atan2f(dy, dx);
+      turn_demand = heading_PID.update(required_angle, pose.theta);
+    }
+
+    if (!stopped) {
+      float output_left = left_PID.update(demand_left - turn_demand, left_speed);
+      float output_right = right_PID.update(demand_right + turn_demand, right_speed);
+
+      left_motor.setPower(output_left);
+      right_motor.setPower(output_right);
+    } else {
+      left_motor.setPower(0);
+      right_motor.setPower(0);
+    }
 
     pid_update_millis = this_millis;
   }
@@ -236,13 +266,33 @@ void loop() {
   // Based on the value of STATE variable,
   // run code for the appropriate robot behaviour.
   if ( state == STATE_INITIAL ) {
-    state = STATE_DRIVE_FORWARDS;
-  } else if ( state == STATE_DRIVE_FORWARDS ) {
-    demand_left = 200.0f;
-    demand_right = 200.0f;
-    if (line_centre.onLine()) {
-      state = STATE_CENTRE_LINE;
+    // state = STATE_DRIVE_FORWARDS;
+    float dx = target_x - pose.x;
+    float dy = target_y - pose.y;
+    float required_angle = atan2f(dy, dx);
+    float angle_left = required_angle - pose.theta;
+    if (angle_left > M_PI) angle_left = -2 * M_PI + angle_left;
+    if (angle_left < -M_PI) angle_left = 2 * M_PI + angle_left;
+    if (angle_left > 0.05f || angle_left < -0.05f) {
+      int direction = (angle_left > 0.0f) ? 1 : -1;
+      demand_left = 500.0f * -direction;
+      demand_right = 500.0f * direction;
+    } else {
+      state = STATE_DRIVE_FORWARDS;
+      heading_home = true;
     }
+  } else if ( state == STATE_DRIVE_FORWARDS ) {
+    demand_left = 500.0f;
+    demand_right = 500.0f;
+    float dx = target_x - pose.x;
+    float dy = target_y - pose.y;
+    if (abs(dx) + abs(dy) < 200) {
+      state = STATE_CENTRE_LINE;
+      stop();
+    }
+    // if (line_centre.onLine()) {
+    //   state = STATE_CENTRE_LINE;
+    // }
   } else if ( state == STATE_CENTRE_LINE ) {
     // Turn, move very slowly
   } else if ( state == STATE_FOLLOW_LINE ) {
