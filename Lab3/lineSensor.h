@@ -2,7 +2,7 @@
 #define _LINESENSOR_H
 
 #ifndef LINE_THRESHOLD
-#define LINE_THRESHOLD 200
+#define LINE_THRESHOLD 300
 #endif
 
 class lineSensor_c {

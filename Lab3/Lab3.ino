@@ -66,11 +66,10 @@ float loop_left_speed, loop_right_speed;
 // States
 #define STATE_INITIAL           0
 #define STATE_DRIVE_FORWARDS    1
-#define STATE_CENTRE_LINE       2
-#define STATE_FOLLOW_LINE       3
-#define STATE_CHECK_RIGHT_ANGLE 4
-#define STATE_RETURN_HOME       5
-#define STATE_DONE              6
+#define STATE_FOLLOW_LINE       2
+#define STATE_CHECK_RIGHT_ANGLE 3
+#define STATE_RETURN_HOME       4
+#define STATE_DONE              5
 
 int state;
 
@@ -263,7 +262,7 @@ void loop() {
       float dx = target_x - pose.x;
       float dy = target_y - pose.y;
       float required_angle = atan2f(dy, dx);
-      turn_demand = heading_PID.update(required_angle, pose.theta);
+      turn_demand = heading_PID.update(required_angle, wrap_angle(pose.theta));
     } else if (heading_measurement == HEADING_LINE_SENSOR) {
       turn_demand = heading_PID.update(0, calculate_m());
     }
@@ -304,7 +303,7 @@ void loop() {
     demand_left = 500.0f;
     demand_right = 500.0f;
     if (line_centre.onLine()) {
-      state = STATE_CENTRE_LINE;
+      state = STATE_FOLLOW_LINE;
       heading_measurement = HEADING_LINE_SENSOR;
       left_PID.reset();
       right_PID.reset();
@@ -312,7 +311,7 @@ void loop() {
       demand_right = 0.0f;
       confidence = 0.0f;
     }
-  } else if ( state == STATE_CENTRE_LINE ) {
+  } else if ( state == STATE_FOLLOW_LINE ) {
     bool left = line_left.onLine();
     bool centre = line_centre.onLine();
     bool right = line_right.onLine();
@@ -320,26 +319,18 @@ void loop() {
     digitalWrite(LED_BUILTIN, (centre) ? HIGH : LOW);
     digitalWrite(30, (left) ? LOW : HIGH);
     digitalWrite(17, (right) ? LOW : HIGH);
-    if (!centre && !left && !right) {
-      if (lost_line_count >= LOST_LINE_THRESHOLD) {
-        confidence = 0.0f;
-        state = STATE_CHECK_RIGHT_ANGLE;
-        right_angle_state = TURNING_RIGHT;
-        original_theta = pose.theta;
-        demand_left = 0.0f;
-        demand_right = 0.0f;
-        left_PID.reset();
-        right_PID.reset();
-      }
+    if (!centre && !left && !right && lost_line_count >= LOST_LINE_THRESHOLD) {
+      confidence = 0.0f;
+      state = STATE_CHECK_RIGHT_ANGLE;
+      right_angle_state = TURNING_RIGHT;
+      original_theta = pose.theta;
+      demand_left = 0.0f;
+      demand_right = 0.0f;
+      left_PID.reset();
+      right_PID.reset();
     } else {
-      lost_line_count = 0;
       demand_left = 300.0f * confidence + 200.0f;
       demand_right = 300.0f * confidence + 200.0f;
-    }
-  } else if ( state == STATE_FOLLOW_LINE ) {
-    // Follow line with heading controller (confidence forward bias?)
-    if (!line_left.onLine() && !line_centre.onLine() && !line_right.onLine()) {
-      state = STATE_CHECK_RIGHT_ANGLE;
     }
   } else if ( state == STATE_CHECK_RIGHT_ANGLE ) {
     // Turn 90 degrees left, then 90 degrees right, then back to centre
@@ -349,14 +340,14 @@ void loop() {
       demand_left = 500.0f;
       demand_right = -500.0f;
 
-      if (abs(wrap_angle(original_theta - M_PI_2) - pose.theta) < 0.1f) {
+      if (abs((original_theta - M_PI_2) - pose.theta) < 0.1f) {
         right_angle_state = TURNING_LEFT;
       }
     } else if (right_angle_state == TURNING_LEFT) {
       demand_left = -500.0f;
       demand_right = 500.0f;
 
-      if (abs(wrap_angle(original_theta + M_PI_2) - pose.theta) < 0.1f) {
+      if (abs((original_theta + M_PI_2) - pose.theta) < 0.1f) {
         right_angle_state = TURNING_CENTRE;
       }
     } else if (right_angle_state == TURNING_CENTRE) {
@@ -365,11 +356,15 @@ void loop() {
 
       if (abs(original_theta - pose.theta) < 0.1f) {
         state = STATE_DRIVE_FORWARDS;
+        left_PID.reset();
+        right_PID.reset();
+        confidence = 0.0f;
+        heading_measurement = HEADING_NONE;
       }
     }
 
     if (line_centre.onLine()) {
-      state = STATE_CENTRE_LINE;
+      state = STATE_FOLLOW_LINE;
       heading_measurement = HEADING_LINE_SENSOR;
       left_PID.reset();
       right_PID.reset();
