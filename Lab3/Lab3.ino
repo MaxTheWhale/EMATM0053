@@ -93,12 +93,16 @@ float target_y = 2500.0f;
 
 int heading_measurement;
 
-#define NO_TURN       0
-#define TURNING_RIGHT 1
-#define TURNING_LEFT  2
+#define NO_TURN        0
+#define TURNING_RIGHT  1
+#define TURNING_LEFT   2
+#define TURNING_CENTRE 3
 
 int right_angle_state;
 float original_theta;
+
+#define LOST_LINE_THRESHOLD 3
+int lost_line_count;
 
 bool stopped = false;
 
@@ -135,6 +139,8 @@ void setup() {
 
   state = STATE_INITIAL;
   heading_measurement = HEADING_NONE;
+
+  lost_line_count = 0;
 }
 
 #define ON_LINE_THRESHOLD 100
@@ -273,7 +279,13 @@ void loop() {
       right_motor.setPower(0);
     }
 
-    confidence += 0.01f;
+    confidence += 0.005f;
+
+    if (!line_centre.onLine() && !line_left.onLine() && !line_right.onLine()) {
+      lost_line_count += 1;
+    } else {
+      lost_line_count = 0;
+    }
 
     pid_update_millis = this_millis;
   }
@@ -309,17 +321,20 @@ void loop() {
     digitalWrite(30, (left) ? LOW : HIGH);
     digitalWrite(17, (right) ? LOW : HIGH);
     if (!centre && !left && !right) {
-      confidence = 0.0f;
-      state = STATE_CHECK_RIGHT_ANGLE;
-      right_angle_state = TURNING_RIGHT;
-      original_theta = pose.theta;
-      demand_left = 0.0f;
-      demand_right = 0.0f;
-      left_PID.reset();
-      right_PID.reset();
+      if (lost_line_count >= LOST_LINE_THRESHOLD) {
+        confidence = 0.0f;
+        state = STATE_CHECK_RIGHT_ANGLE;
+        right_angle_state = TURNING_RIGHT;
+        original_theta = pose.theta;
+        demand_left = 0.0f;
+        demand_right = 0.0f;
+        left_PID.reset();
+        right_PID.reset();
+      }
     } else {
-      demand_left = 500.0f * confidence;
-      demand_right = 500.0f * confidence;
+      lost_line_count = 0;
+      demand_left = 300.0f * confidence + 200.0f;
+      demand_right = 300.0f * confidence + 200.0f;
     }
   } else if ( state == STATE_FOLLOW_LINE ) {
     // Follow line with heading controller (confidence forward bias?)
@@ -342,6 +357,13 @@ void loop() {
       demand_right = 500.0f;
 
       if (abs(wrap_angle(original_theta + M_PI_2) - pose.theta) < 0.1f) {
+        right_angle_state = TURNING_CENTRE;
+      }
+    } else if (right_angle_state == TURNING_CENTRE) {
+      demand_left = 500.0f;
+      demand_right = -500.0f;
+
+      if (abs(original_theta - pose.theta) < 0.1f) {
         state = STATE_DRIVE_FORWARDS;
       }
     }
@@ -354,9 +376,6 @@ void loop() {
       demand_left = 0.0f;
       demand_right = 0.0f;
       confidence = 0.0f;
-    }
-    if (1) { // if check finished
-      state = STATE_DRIVE_FORWARDS;
     }
   } else if ( state == STATE_RETURN_HOME ) {
     // Need kinematics magic
