@@ -103,7 +103,8 @@ float original_theta;
 #define LOST_LINE_THRESHOLD 3
 int lost_line_count;
 
-bool stopped = false;
+bool line_break_crossed;
+bool stopped;
 
 // Setup, only runs once when the power
 // is turned on.  However, if your Romi
@@ -140,6 +141,9 @@ void setup() {
   heading_measurement = HEADING_NONE;
 
   lost_line_count = 0;
+
+  line_break_crossed = false;
+  stopped = false;
 }
 
 #define ON_LINE_THRESHOLD 100
@@ -355,11 +359,19 @@ void loop() {
       demand_right = -500.0f;
 
       if (abs(original_theta - pose.theta) < 0.1f) {
-        state = STATE_DRIVE_FORWARDS;
-        left_PID.reset();
-        right_PID.reset();
-        confidence = 0.0f;
-        heading_measurement = HEADING_NONE;
+        if (line_break_crossed) {
+          state = STATE_RETURN_HOME;
+          heading_measurement = HEADING_ANGLE;
+          left_PID.reset();
+          right_PID.reset();
+        } else {
+          state = STATE_DRIVE_FORWARDS;
+          left_PID.reset();
+          right_PID.reset();
+          confidence = 0.0f;
+          heading_measurement = HEADING_NONE;
+          line_break_crossed = true;
+        }
       }
     }
 
@@ -373,7 +385,27 @@ void loop() {
       confidence = 0.0f;
     }
   } else if ( state == STATE_RETURN_HOME ) {
-    // Need kinematics magic
+    target_x = 0.0f;
+    target_y = 0.0f;
+
+    float dx = target_x - pose.x;
+    float dy = target_y - pose.y;
+    float required_angle = atan2f(dy, dx);
+    float angle_difference = abs(required_angle - wrap_angle(pose.theta));
+    if (angle_difference < 0.2f) {
+      demand_left = 500.0f;
+      demand_right = 500.0f;
+    } else {
+      demand_left = 0.0f;
+      demand_right = 0.0f;
+    }
+    if (abs(dx) + abs(dy) < 200.0f) {
+      demand_left = 0.0f;
+      demand_right = 0.0f;
+      stopped = true;
+      state = STATE_DONE;
+      heading_measurement = HEADING_NONE;
+    }
   } else if ( state == STATE_DONE ) {
     // Do nothing!
   } else {
