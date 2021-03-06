@@ -344,21 +344,21 @@ void loop() {
       demand_left = 500.0f;
       demand_right = -500.0f;
 
-      if (abs((original_theta - M_PI_2) - pose.theta) < 0.1f) {
+      if (abs((original_theta - M_PI_2) - pose.theta) < 0.05f) {
         right_angle_state = TURNING_LEFT;
       }
     } else if (right_angle_state == TURNING_LEFT) {
       demand_left = -500.0f;
       demand_right = 500.0f;
 
-      if (abs((original_theta + M_PI_2) - pose.theta) < 0.1f) {
+      if (abs((original_theta + M_PI_2) - pose.theta) < 0.05f) {
         right_angle_state = TURNING_CENTRE;
       }
     } else if (right_angle_state == TURNING_CENTRE) {
       demand_left = 500.0f;
       demand_right = -500.0f;
 
-      if (abs(original_theta - pose.theta) < 0.1f) {
+      if (abs(original_theta - pose.theta) < 0.05f) {
         if (line_break_crossed) {
           state = STATE_RETURN_HOME;
           heading_measurement = HEADING_ANGLE;
