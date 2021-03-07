@@ -83,10 +83,6 @@ unsigned long speed_update_millis = 0;
 unsigned long kinematics_update_millis = 0;
 float demand_left, demand_right;
 
-float desired_angle = M_PI - 0.1f;
-float target_x = 5000.0f;
-float target_y = 2500.0f;
-
 #define HEADING_NONE        0
 #define HEADING_LINE_SENSOR 1
 #define HEADING_ANGLE       2
@@ -100,6 +96,8 @@ int heading_measurement;
 
 int right_angle_state;
 float original_theta;
+
+float confidence;
 
 #define LOST_LINE_THRESHOLD 3
 int lost_line_count;
@@ -143,6 +141,8 @@ void setup() {
   demand_left = 0.0f;
   demand_right = 0.0f;
 
+  confidence = 0.0f;
+
   state = STATE_INITIAL;
   heading_measurement = HEADING_NONE;
 
@@ -152,55 +152,6 @@ void setup() {
   line_break_crossed = false;
   crossing_line_break = false;
   stopped = false;
-}
-
-#define ON_LINE_THRESHOLD 100
-#define TURN_POWER 50.0f
-#define FORWARD_POWER 20.0f
-
-float confidence = 0.0f;
-
-void BangBang() {
-  int left = line_left.read();
-  int centre = line_centre.read();
-  int right = line_right.read();
-  float total = left + right + centre;
-  float m = 0;
-  int l_power = 0;
-  int r_power = 0;
-  if (line_centre.onLine()) {
-    digitalWrite(LED_BUILTIN, HIGH);
-    float l_norm = left / total;
-    float c_norm = centre / total;
-    float r_norm = right / total;
-    m = l_norm - r_norm;
-    int l_turn_bias = (int)(TURN_POWER * m);
-    int r_turn_bias = (int)(-TURN_POWER * m);
-    int forward_bias = (int)(FORWARD_POWER * (1.0f - abs(m)) * confidence);
-    l_power = l_turn_bias + forward_bias;
-    r_power = r_turn_bias + forward_bias;
-      // m = 1, l = 20, r = -20
-      // m = 0, l = 20, r = 20
-      // m = -1,l = -20,  r = 20
-      // bias is inversely proportional to m
-      // l_power = l_turn_bias + forward_bias
-      // l_turn_bias = TURN_POWER * m
-      // forward_bias = FORWARD_POWER * (1 - abs(m))
-    if (confidence < 1.0f) confidence += 0.01f;
-  } else {
-    digitalWrite(LED_BUILTIN, LOW);
-    confidence = 0.0f;
-    l_power = 20;
-    r_power = 20;
-  }
-  Serial.println(m);
-  Serial.println(l_power);
-  Serial.println(r_power);
-  Serial.println();
-
-
-  left_motor.setPower(l_power);
-  right_motor.setPower(r_power);
 }
 
 float calculate_m() {
@@ -213,11 +164,8 @@ float calculate_m() {
     float l_norm = left / total;
     float r_norm = right / total;
     m = r_norm - l_norm;
-    // if (m < -1.0f || m > 1.0f) {Serial.println("calculate_m: bad m value");
-    // Serial.println(m);
-    // Serial.println(l_norm);
-    // Serial.println(r_norm);
-    // Serial.println(total);}
+    if (m > 1.0f) m = 1.0f;
+    if (m < -1.0f) m = -1.0f;
   }
 
   return m;
@@ -261,6 +209,7 @@ void loop() {
 
     pose.update(left_change, right_change);
 
+    Serial.print("Pose: ");
     Serial.print(pose.x);
     Serial.print(',');
     Serial.print(pose.y);
@@ -269,7 +218,9 @@ void loop() {
 
     int batlev = analogRead(A1);
     float voltage = batlev * (5.0f / 1024.0f) * 3.0f;
-    Serial.println(voltage);
+    Serial.print("Voltage: ");
+    Serial.print(voltage);
+    Serial.println("V");
 
     timestamp = micros();
     speed_update_millis = this_millis;
@@ -279,17 +230,12 @@ void loop() {
 
     float turn_demand = 0.0f;
     if (heading_measurement == HEADING_ANGLE) {
-      float dx = target_x - pose.x;
-      float dy = target_y - pose.y;
+      float dx = -pose.x;
+      float dy = -pose.y;
       float required_angle = atan2f(dy, dx);
       if (required_angle - pose.theta > M_PI) required_angle -= 2 * M_PI;
       if (required_angle - pose.theta < -M_PI) required_angle += 2 * M_PI;
       turn_demand = heading_PID.update(required_angle, pose.theta);
-      // Serial.print(dy);
-      // Serial.print(", ");
-      // Serial.print(dx);
-      // Serial.print(", ");
-      // Serial.println(required_angle);
     } else if (heading_measurement == HEADING_LINE_SENSOR) {
       turn_demand = heading_PID.update(0, calculate_m());
     }
@@ -341,7 +287,7 @@ void loop() {
         right_PID.reset();
       }
     }
-    if (line_centre.onLine()) {
+    if (line_left.onLine() || line_centre.onLine() || line_right.onLine()) {
       if (crossing_line_break) {
         line_break_crossed = true;
         crossing_line_break = false;
@@ -431,9 +377,6 @@ void loop() {
     demand_left = -500.0f;
     demand_right = 500.0f;
 
-    // Serial.print(wrap_angle(original_theta - M_PI));
-    // Serial.print(", ");
-    // Serial.println(pose.theta);
     if (abs((wrap_angle(original_theta - M_PI)) - pose.theta) < 0.05f) {
       crossing_line_break = false;
       state = STATE_DRIVE_FORWARDS;
@@ -442,11 +385,8 @@ void loop() {
       right_PID.reset();
     }
   } else if ( state == STATE_RETURN_HOME ) {
-    target_x = 0.0f;
-    target_y = 0.0f;
-
-    float dx = target_x - pose.x;
-    float dy = target_y - pose.y;
+    float dx = -pose.x;
+    float dy = -pose.y;
     float required_angle = atan2f(dy, dx);
     float angle_left = required_angle - pose.theta;
     if (angle_left > M_PI) angle_left = -2 * M_PI + angle_left;
