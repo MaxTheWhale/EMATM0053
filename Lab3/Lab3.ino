@@ -68,8 +68,9 @@ float loop_left_speed, loop_right_speed;
 #define STATE_DRIVE_FORWARDS    1
 #define STATE_FOLLOW_LINE       2
 #define STATE_CHECK_RIGHT_ANGLE 3
-#define STATE_RETURN_HOME       4
-#define STATE_DONE              5
+#define STATE_UTURN             4
+#define STATE_RETURN_HOME       5
+#define STATE_DONE              6
 
 int state;
 
@@ -102,7 +103,12 @@ float original_theta;
 
 #define LOST_LINE_THRESHOLD 3
 int lost_line_count;
+int line_break_count;
 
+float line_end_x;
+float line_end_y;
+
+bool crossing_line_break;
 bool line_break_crossed;
 bool stopped;
 
@@ -141,8 +147,10 @@ void setup() {
   heading_measurement = HEADING_NONE;
 
   lost_line_count = 0;
+  line_break_count = 0;
 
   line_break_crossed = false;
+  crossing_line_break = false;
   stopped = false;
 }
 
@@ -259,6 +267,10 @@ void loop() {
     Serial.print(',');
     Serial.println(pose.theta);
 
+    int batlev = analogRead(A1);
+    float voltage = batlev * (5.0f / 1024.0f) * 3.0f;
+    Serial.println(voltage);
+
     timestamp = micros();
     speed_update_millis = this_millis;
   }
@@ -319,7 +331,21 @@ void loop() {
   } else if ( state == STATE_DRIVE_FORWARDS ) {
     demand_left = 500.0f;
     demand_right = 500.0f;
+    if (crossing_line_break) {
+      float dx = pose.x - line_end_x;
+      float dy = pose.y - line_end_y;
+      if (abs(dx) + abs(dy) > 400) {
+        state = STATE_UTURN;
+        original_theta = pose.theta;
+        left_PID.reset();
+        right_PID.reset();
+      }
+    }
     if (line_centre.onLine()) {
+      if (crossing_line_break) {
+        line_break_crossed = true;
+        crossing_line_break = false;
+      }
       state = STATE_FOLLOW_LINE;
       heading_measurement = HEADING_LINE_SENSOR;
       left_PID.reset();
@@ -386,7 +412,9 @@ void loop() {
         right_PID.reset();
         confidence = 0.0f;
         heading_measurement = HEADING_NONE;
-        line_break_crossed = true;
+        crossing_line_break = true;
+        line_end_x = pose.x;
+        line_end_y = pose.y;
       }
     }
 
@@ -398,6 +426,20 @@ void loop() {
       demand_left = 0.0f;
       demand_right = 0.0f;
       confidence = 0.0f;
+    }
+  } else if ( state == STATE_UTURN ) {
+    demand_left = -500.0f;
+    demand_right = 500.0f;
+
+    // Serial.print(wrap_angle(original_theta - M_PI));
+    // Serial.print(", ");
+    // Serial.println(pose.theta);
+    if (abs((wrap_angle(original_theta - M_PI)) - pose.theta) < 0.05f) {
+      crossing_line_break = false;
+      state = STATE_DRIVE_FORWARDS;
+      heading_measurement = HEADING_NONE;
+      left_PID.reset();
+      right_PID.reset();
     }
   } else if ( state == STATE_RETURN_HOME ) {
     target_x = 0.0f;
