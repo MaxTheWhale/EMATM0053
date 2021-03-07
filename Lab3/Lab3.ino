@@ -52,7 +52,7 @@ float Ki_right = 0.003f; //Integral gain
 PID_c right_PID(Kp_right, Ki_right, Kd_right); // controller for right wheel
 
 // Experiment with your gains slowly, one by one.
-float Kp_heading = 400.0f; //Proportional gain 
+float Kp_heading = 600.0f; //Proportional gain 
 float Kd_heading = 0.0f; //Derivative gain
 float Ki_heading = 0.0f; //Integral gain
 PID_c heading_PID(Kp_heading, Ki_heading, Kd_heading); // controller for heading
@@ -346,9 +346,10 @@ void loop() {
       left_PID.reset();
       right_PID.reset();
     } else {
-      float forward_bias = (centre) ? 300.0f : 0.0f;
-      demand_left = forward_bias * confidence + 200.0f;
-      demand_right = forward_bias * confidence + 200.0f;
+      float forward_bias = (centre) ? 200.0f : 0.0f;
+      float forward_constant = (centre) ? 200.0f : 0.0f;
+      demand_left = forward_bias * confidence + forward_constant;
+      demand_right = forward_bias * confidence + forward_constant;
     }
   } else if ( state == STATE_CHECK_RIGHT_ANGLE ) {
     // Turn 90 degrees left, then 90 degrees right, then back to centre

@@ -3,7 +3,7 @@
 
 #include <math.h>
 
-#define WHEEL_SEPARATION 975.0f
+#define WHEEL_SEPARATION 950.0f
 
 class kinematics_c {
   public:
