@@ -201,11 +201,15 @@ float calculate_m() {
   int right = line_right.read();
   float total = left + right + centre;
   float m = 0;
-  if (total > 100) {
+  if (total > 300) {
     float l_norm = left / total;
     float r_norm = right / total;
     m = r_norm - l_norm;
-    if (m < -1.0f || m > 1.0f) Serial.println("calculate_m: bad m value");
+    // if (m < -1.0f || m > 1.0f) {Serial.println("calculate_m: bad m value");
+    // Serial.println(m);
+    // Serial.println(l_norm);
+    // Serial.println(r_norm);
+    // Serial.println(total);}
   }
 
   return m;
@@ -266,7 +270,14 @@ void loop() {
       float dx = target_x - pose.x;
       float dy = target_y - pose.y;
       float required_angle = atan2f(dy, dx);
-      turn_demand = heading_PID.update(required_angle, wrap_angle(pose.theta));
+      if (required_angle - pose.theta > M_PI) required_angle -= 2 * M_PI;
+      if (required_angle - pose.theta < -M_PI) required_angle += 2 * M_PI;
+      turn_demand = heading_PID.update(required_angle, pose.theta);
+      // Serial.print(dy);
+      // Serial.print(", ");
+      // Serial.print(dx);
+      // Serial.print(", ");
+      // Serial.println(required_angle);
     } else if (heading_measurement == HEADING_LINE_SENSOR) {
       turn_demand = heading_PID.update(0, calculate_m());
     }
@@ -286,6 +297,8 @@ void loop() {
 
     if (!line_centre.onLine() && !line_left.onLine() && !line_right.onLine()) {
       lost_line_count += 1;
+      confidence -= 0.3f;
+      if (confidence < 0.0f) confidence = 0.0f;
     } else {
       lost_line_count = 0;
     }
@@ -333,8 +346,9 @@ void loop() {
       left_PID.reset();
       right_PID.reset();
     } else {
-      demand_left = 300.0f * confidence + 200.0f;
-      demand_right = 300.0f * confidence + 200.0f;
+      float forward_bias = (centre) ? 300.0f : 0.0f;
+      demand_left = forward_bias * confidence + 200.0f;
+      demand_right = forward_bias * confidence + 200.0f;
     }
   } else if ( state == STATE_CHECK_RIGHT_ANGLE ) {
     // Turn 90 degrees left, then 90 degrees right, then back to centre
@@ -352,26 +366,26 @@ void loop() {
       demand_right = 500.0f;
 
       if (abs((original_theta + M_PI_2) - pose.theta) < 0.05f) {
-        right_angle_state = TURNING_CENTRE;
-      }
-    } else if (right_angle_state == TURNING_CENTRE) {
-      demand_left = 500.0f;
-      demand_right = -500.0f;
-
-      if (abs(original_theta - pose.theta) < 0.05f) {
         if (line_break_crossed) {
           state = STATE_RETURN_HOME;
           heading_measurement = HEADING_ANGLE;
           left_PID.reset();
           right_PID.reset();
         } else {
-          state = STATE_DRIVE_FORWARDS;
-          left_PID.reset();
-          right_PID.reset();
-          confidence = 0.0f;
-          heading_measurement = HEADING_NONE;
-          line_break_crossed = true;
+          right_angle_state = TURNING_CENTRE;
         }
+      }
+    } else if (right_angle_state == TURNING_CENTRE) {
+      demand_left = 500.0f;
+      demand_right = -500.0f;
+
+      if (abs(original_theta - pose.theta) < 0.05f) {
+        state = STATE_DRIVE_FORWARDS;
+        left_PID.reset();
+        right_PID.reset();
+        confidence = 0.0f;
+        heading_measurement = HEADING_NONE;
+        line_break_crossed = true;
       }
     }
 
@@ -391,14 +405,21 @@ void loop() {
     float dx = target_x - pose.x;
     float dy = target_y - pose.y;
     float required_angle = atan2f(dy, dx);
-    float angle_difference = abs(required_angle - wrap_angle(pose.theta));
-    if (angle_difference < 0.2f) {
-      demand_left = 500.0f;
-      demand_right = 500.0f;
-    } else {
+    float angle_left = required_angle - pose.theta;
+    if (angle_left > M_PI) angle_left = -2 * M_PI + angle_left;
+    if (angle_left < -M_PI) angle_left = 2 * M_PI + angle_left;
+    if (angle_left > 0.2f || angle_left < -0.2f) {
       demand_left = 0.0f;
       demand_right = 0.0f;
+    } else {
+      if (demand_left == 0.0f) {
+        left_PID.reset();
+        right_PID.reset();
+        demand_left = 500.0f;
+        demand_right = 500.0f;
+      }
     }
+
     if (abs(dx) + abs(dy) < 200.0f) {
       demand_left = 0.0f;
       demand_right = 0.0f;
@@ -406,6 +427,7 @@ void loop() {
       state = STATE_DONE;
       heading_measurement = HEADING_NONE;
     }
+
   } else if ( state == STATE_DONE ) {
     // Do nothing!
   } else {

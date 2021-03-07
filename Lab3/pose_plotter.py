@@ -1,9 +1,9 @@
 from turtle import *;
 import serial
 
-port = serial.Serial("COM4", baudrate=9600, timeout=3.0)
+port = serial.Serial("/dev/ttyACM0", baudrate=9600, timeout=3.0)
 
-scale = 0.1
+scale = 0.02
 
 mode("standard")
 home()

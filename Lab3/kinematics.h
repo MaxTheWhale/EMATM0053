@@ -33,6 +33,8 @@ void kinematics_c::update(int left_change, int right_change) {
   x += distance * cosf(theta);
   y += distance * sinf(theta);
   theta += (right_change - left_change) / WHEEL_SEPARATION;
+  if (theta > M_PI) theta -= 2.0f * M_PI;
+  if (theta < -M_PI) theta += 2.0f * M_PI;
 }
 
 
