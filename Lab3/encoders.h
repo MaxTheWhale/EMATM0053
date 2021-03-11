@@ -98,8 +98,6 @@ ISR( PCINT0_vect ) {
   // true value.
   newE0_A ^= newE0_B;
 
-
-  
   // Create a bitwise representation of our states
   // We do this by shifting the boolean value up by
   // the appropriate number of bits, as per our table
@@ -112,9 +110,6 @@ ISR( PCINT0_vect ) {
   state = state | ( newE0_B  << 2 );
   state = state | ( oldE0_A  << 1 );
   state = state | ( oldE0_B  << 0 );
-
-
-
 
   if( state == 1 || state == 7 || state == 8 || state == 14 ) {
     left_count -= 1;
@@ -141,9 +136,6 @@ ISR( TIMER3_COMPA_vect ) {
   prev_right_count = right_count;
   prev_left_count = left_count;
 }
-
-
-
 
 
 /*
@@ -194,7 +186,6 @@ void setupEncoder1() {
   // Set INT6 bit high, preserve other bits
   EIMSK |= ( 1 << INT6 );
   //EIMSK |= B01000000; // Same as above
-
 }
 
 void setupEncoder0() {
@@ -293,6 +284,5 @@ void setupTimer3() {
   TIMSK3 = TIMSK3 | (1 << OCIE3A);
 
   // enable global interrupts:
-  sei(); 
-
+  sei();
 }

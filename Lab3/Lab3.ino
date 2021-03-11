@@ -61,33 +61,23 @@ kinematics_c pose;
 
 long prev_loop_left_count, prev_loop_right_count;
 unsigned long timestamp;
-float loop_left_speed, loop_right_speed;
 
 // States
-#define STATE_INITIAL           0
-#define STATE_DRIVE_FORWARDS    1
-#define STATE_FOLLOW_LINE       2
-#define STATE_CHECK_RIGHT_ANGLE 3
-#define STATE_UTURN             4
-#define STATE_RETURN_HOME       5
-#define STATE_DONE              6
+#define STATE_DRIVE_FORWARDS    0
+#define STATE_FOLLOW_LINE       1
+#define STATE_CHECK_RIGHT_ANGLE 2
+#define STATE_UTURN             3
+#define STATE_RETURN_HOME       4
+#define STATE_DONE              5
 
 int state;
 
 #define PID_UPDATE_PERIOD 100
-#define SPEED_UPDATE_PERIOD 50
-#define KINEMATICS_UPDATE_PERIOD 50
+#define POSE_UPDATE_PERIOD 50
 
 unsigned long pid_update_millis = 0;
-unsigned long speed_update_millis = 0;
-unsigned long kinematics_update_millis = 0;
+unsigned long pose_update_millis = 0;
 float demand_left, demand_right;
-
-#define HEADING_NONE        0
-#define HEADING_LINE_SENSOR 1
-#define HEADING_ANGLE       2
-
-int heading_measurement;
 
 #define NO_TURN        0
 #define TURNING_RIGHT  1
@@ -101,7 +91,6 @@ float confidence;
 
 #define LOST_LINE_THRESHOLD 3
 int lost_line_count;
-int line_break_count;
 
 float line_end_x;
 float line_end_y;
@@ -134,8 +123,6 @@ void setup() {
 
   prev_loop_left_count = 0;
   prev_loop_right_count = 0;
-  loop_left_speed = 0.0f;
-  loop_right_speed = 0.0f;
   timestamp = 0;
 
   demand_left = 0.0f;
@@ -143,11 +130,9 @@ void setup() {
 
   confidence = 0.0f;
 
-  state = STATE_INITIAL;
-  heading_measurement = HEADING_NONE;
+  state = STATE_DRIVE_FORWARDS;
 
   lost_line_count = 0;
-  line_break_count = 0;
 
   line_break_crossed = false;
   crossing_line_break = false;
@@ -195,14 +180,10 @@ float wrap_angle(float theta) {
 void loop() {
   unsigned long this_millis = millis();
 
-  if (this_millis > speed_update_millis + SPEED_UPDATE_PERIOD) {
-    unsigned int elapsed_time = micros() - timestamp;
+  if (this_millis > pose_update_millis + POSE_UPDATE_PERIOD) {
 
     int left_change = left_count - prev_loop_left_count;
     int right_change = right_count - prev_loop_right_count;
-
-    loop_left_speed = left_change / (float)elapsed_time * 1000000;
-    loop_right_speed = right_change / (float)elapsed_time * 1000000;
 
     prev_loop_left_count = left_count;
     prev_loop_right_count = right_count;
@@ -222,21 +203,20 @@ void loop() {
     Serial.print(voltage);
     Serial.println("V");
 
-    timestamp = micros();
-    speed_update_millis = this_millis;
+    pose_update_millis = this_millis;
   }
 
   if (this_millis > pid_update_millis + PID_UPDATE_PERIOD) {
 
     float turn_demand = 0.0f;
-    if (heading_measurement == HEADING_ANGLE) {
+    if (state == STATE_RETURN_HOME) {
       float dx = -pose.x;
       float dy = -pose.y;
       float required_angle = atan2f(dy, dx);
       if (required_angle - pose.theta > M_PI) required_angle -= 2 * M_PI;
       if (required_angle - pose.theta < -M_PI) required_angle += 2 * M_PI;
       turn_demand = heading_PID.update(required_angle, pose.theta);
-    } else if (heading_measurement == HEADING_LINE_SENSOR) {
+    } else if (state == STATE_FOLLOW_LINE) {
       turn_demand = heading_PID.update(0, calculate_m());
     }
 
@@ -264,17 +244,9 @@ void loop() {
     pid_update_millis = this_millis;
   }
 
-  if (this_millis > kinematics_update_millis + KINEMATICS_UPDATE_PERIOD) {
-    
-
-    kinematics_update_millis = this_millis;
-  }
-
   // Based on the value of STATE variable,
   // run code for the appropriate robot behaviour.
-  if ( state == STATE_INITIAL ) {
-    state = STATE_DRIVE_FORWARDS;
-  } else if ( state == STATE_DRIVE_FORWARDS ) {
+  if ( state == STATE_DRIVE_FORWARDS ) {
     demand_left = 500.0f;
     demand_right = 500.0f;
     if (crossing_line_break) {
@@ -293,7 +265,6 @@ void loop() {
         crossing_line_break = false;
       }
       state = STATE_FOLLOW_LINE;
-      heading_measurement = HEADING_LINE_SENSOR;
       left_PID.reset();
       right_PID.reset();
       demand_left = 0.0f;
@@ -341,7 +312,6 @@ void loop() {
       if (abs((original_theta + M_PI_2) - pose.theta) < 0.05f) {
         if (line_break_crossed) {
           state = STATE_RETURN_HOME;
-          heading_measurement = HEADING_ANGLE;
           left_PID.reset();
           right_PID.reset();
         } else {
@@ -357,7 +327,6 @@ void loop() {
         left_PID.reset();
         right_PID.reset();
         confidence = 0.0f;
-        heading_measurement = HEADING_NONE;
         crossing_line_break = true;
         line_end_x = pose.x;
         line_end_y = pose.y;
@@ -366,7 +335,6 @@ void loop() {
 
     if (line_centre.onLine()) {
       state = STATE_FOLLOW_LINE;
-      heading_measurement = HEADING_LINE_SENSOR;
       left_PID.reset();
       right_PID.reset();
       demand_left = 0.0f;
@@ -380,7 +348,6 @@ void loop() {
     if (abs((wrap_angle(original_theta - M_PI)) - pose.theta) < 0.05f) {
       crossing_line_break = false;
       state = STATE_DRIVE_FORWARDS;
-      heading_measurement = HEADING_NONE;
       left_PID.reset();
       right_PID.reset();
     }
@@ -408,7 +375,6 @@ void loop() {
       demand_right = 0.0f;
       stopped = true;
       state = STATE_DONE;
-      heading_measurement = HEADING_NONE;
     }
 
   } else if ( state == STATE_DONE ) {

@@ -100,7 +100,7 @@ float PID_c::update(float demand, float measurement) {
   last_millis = time_now;
   
   float time_delta = (float)diff_time;
-  if (time_delta == 0.0f) return;
+  if (time_delta == 0.0f) return 0.0f;
 
   // Calculate error between demand and measurement.
   float error = demand - measurement;
