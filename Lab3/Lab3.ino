@@ -60,7 +60,6 @@ PID_c heading_PID(Kp_heading, Ki_heading, Kd_heading); // controller for heading
 kinematics_c pose;
 
 long prev_loop_left_count, prev_loop_right_count;
-unsigned long timestamp;
 
 // States
 #define STATE_DRIVE_FORWARDS    0
@@ -79,10 +78,9 @@ unsigned long pid_update_millis = 0;
 unsigned long pose_update_millis = 0;
 float demand_left, demand_right;
 
-#define NO_TURN        0
-#define TURNING_RIGHT  1
-#define TURNING_LEFT   2
-#define TURNING_CENTRE 3
+#define TURNING_RIGHT  0
+#define TURNING_LEFT   1
+#define TURNING_CENTRE 2
 
 int right_angle_state;
 float original_theta;
@@ -123,7 +121,6 @@ void setup() {
 
   prev_loop_left_count = 0;
   prev_loop_right_count = 0;
-  timestamp = 0;
 
   demand_left = 0.0f;
   demand_right = 0.0f;
@@ -139,7 +136,7 @@ void setup() {
   stopped = false;
 }
 
-float calculate_m() {
+float calculateM() {
   int left = line_left.read();
   int centre = line_centre.read();
   int right = line_right.read();
@@ -164,12 +161,25 @@ void stop() {
   stopped = true;
 }
 
-float wrap_angle(float theta) {
+float wrapAngle(float theta) {
   while (theta > M_PI || theta < -M_PI) {
     if (theta > M_PI) theta -= 2.0f * M_PI;
     if (theta < -M_PI) theta += 2.0f * M_PI;
   }
   return theta;
+}
+
+float findAngleDifference(float theta) {
+  float angle_difference = theta - pose.theta;
+  if (angle_difference > M_PI) angle_difference = -2 * M_PI + angle_difference;
+  if (angle_difference < -M_PI) angle_difference = 2 * M_PI + angle_difference;
+}
+
+void changeState(int new_state) {
+  state = new_state;
+  confidence = 0.0f;
+  left_PID.reset();
+  right_PID.reset();
 }
 
 // The main loop of execution.  This loop()
@@ -217,7 +227,7 @@ void loop() {
       if (required_angle - pose.theta < -M_PI) required_angle += 2 * M_PI;
       turn_demand = heading_PID.update(required_angle, pose.theta);
     } else if (state == STATE_FOLLOW_LINE) {
-      turn_demand = heading_PID.update(0, calculate_m());
+      turn_demand = heading_PID.update(0, calculateM());
     }
 
     if (!stopped) {
@@ -253,10 +263,8 @@ void loop() {
       float dx = pose.x - line_end_x;
       float dy = pose.y - line_end_y;
       if (abs(dx) + abs(dy) > 400) {
-        state = STATE_UTURN;
         original_theta = pose.theta;
-        left_PID.reset();
-        right_PID.reset();
+        changeState(STATE_UTURN);
       }
     }
     if (line_left.onLine() || line_centre.onLine() || line_right.onLine()) {
@@ -264,12 +272,7 @@ void loop() {
         line_break_crossed = true;
         crossing_line_break = false;
       }
-      state = STATE_FOLLOW_LINE;
-      left_PID.reset();
-      right_PID.reset();
-      demand_left = 0.0f;
-      demand_right = 0.0f;
-      confidence = 0.0f;
+      changeState(STATE_FOLLOW_LINE);
     }
   } else if ( state == STATE_FOLLOW_LINE ) {
     bool left = line_left.onLine();
@@ -280,14 +283,9 @@ void loop() {
     digitalWrite(30, (left) ? LOW : HIGH);
     digitalWrite(17, (right) ? LOW : HIGH);
     if (!centre && !left && !right && lost_line_count >= LOST_LINE_THRESHOLD) {
-      confidence = 0.0f;
-      state = STATE_CHECK_RIGHT_ANGLE;
+      changeState(STATE_CHECK_RIGHT_ANGLE);
       right_angle_state = TURNING_RIGHT;
       original_theta = pose.theta;
-      demand_left = 0.0f;
-      demand_right = 0.0f;
-      left_PID.reset();
-      right_PID.reset();
     } else {
       float forward_bias = (centre) ? 200.0f : 0.0f;
       float forward_constant = (centre) ? 200.0f : 0.0f;
@@ -302,18 +300,16 @@ void loop() {
       demand_left = 500.0f;
       demand_right = -500.0f;
 
-      if (abs((original_theta - M_PI_2) - pose.theta) < 0.05f) {
+      if (abs((wrapAngle(original_theta - M_PI_2)) - pose.theta) < 0.05f) {
         right_angle_state = TURNING_LEFT;
       }
     } else if (right_angle_state == TURNING_LEFT) {
       demand_left = -500.0f;
       demand_right = 500.0f;
 
-      if (abs((original_theta + M_PI_2) - pose.theta) < 0.05f) {
+      if (abs((wrapAngle(original_theta + M_PI_2)) - pose.theta) < 0.05f) {
         if (line_break_crossed) {
-          state = STATE_RETURN_HOME;
-          left_PID.reset();
-          right_PID.reset();
+          changeState(STATE_RETURN_HOME);
         } else {
           right_angle_state = TURNING_CENTRE;
         }
@@ -323,10 +319,7 @@ void loop() {
       demand_right = -500.0f;
 
       if (abs(original_theta - pose.theta) < 0.05f) {
-        state = STATE_DRIVE_FORWARDS;
-        left_PID.reset();
-        right_PID.reset();
-        confidence = 0.0f;
+        changeState(STATE_DRIVE_FORWARDS);
         crossing_line_break = true;
         line_end_x = pose.x;
         line_end_y = pose.y;
@@ -334,31 +327,21 @@ void loop() {
     }
 
     if (line_centre.onLine()) {
-      state = STATE_FOLLOW_LINE;
-      left_PID.reset();
-      right_PID.reset();
-      demand_left = 0.0f;
-      demand_right = 0.0f;
-      confidence = 0.0f;
+      changeState(STATE_FOLLOW_LINE);
     }
   } else if ( state == STATE_UTURN ) {
     demand_left = -500.0f;
     demand_right = 500.0f;
 
-    if (abs((wrap_angle(original_theta - M_PI)) - pose.theta) < 0.05f) {
+    if (abs((wrapAngle(original_theta - M_PI)) - pose.theta) < 0.05f) {
       crossing_line_break = false;
-      state = STATE_DRIVE_FORWARDS;
-      left_PID.reset();
-      right_PID.reset();
+      changeState(STATE_DRIVE_FORWARDS);
     }
   } else if ( state == STATE_RETURN_HOME ) {
     float dx = -pose.x;
     float dy = -pose.y;
-    float required_angle = atan2f(dy, dx);
-    float angle_left = required_angle - pose.theta;
-    if (angle_left > M_PI) angle_left = -2 * M_PI + angle_left;
-    if (angle_left < -M_PI) angle_left = 2 * M_PI + angle_left;
-    if (angle_left > 0.2f || angle_left < -0.2f) {
+    float dtheta = findAngleDifference(atan2f(dy, dx));
+    if (dtheta > 0.2f || dtheta < -0.2f) {
       demand_left = 0.0f;
       demand_right = 0.0f;
     } else {
@@ -371,10 +354,8 @@ void loop() {
     }
 
     if (abs(dx) + abs(dy) < 200.0f) {
-      demand_left = 0.0f;
-      demand_right = 0.0f;
       stopped = true;
-      state = STATE_DONE;
+      changeState(STATE_DONE);
     }
 
   } else if ( state == STATE_DONE ) {
