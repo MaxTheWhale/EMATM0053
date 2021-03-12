@@ -87,7 +87,7 @@ ISR( PCINT0_vect ) {
   // Reading just PINE would give us a number
   // composed of all 8 bits.  We want only bit 2.
   // B00000100 masks out all but bit 2
-  boolean newE0_B = PINE & (1<<PINE2);
+  boolean newE0_B = PINE & ( 1<<PINE2 );
   //boolean newE0_B = PINE & B00000100;  // Does same as above.
 
   // Standard read fro the other pin.
@@ -166,7 +166,7 @@ void setupEncoder1() {
   // Page 90, 11.1.3 External Interrupt Mask Register – EIMSK
   // Disable external interrupts for INT6 first
   // Set INT6 bit low, preserve other bits
-  EIMSK = EIMSK & ~(1<<INT6);
+  EIMSK = EIMSK & ~( 1 << INT6 );
   //EIMSK = EIMSK & B1011111; // Same as above.
   
   // Page 89, 11.1.2 External Interrupt Control Register B – EICRB
@@ -212,13 +212,13 @@ void setupEncoder0() {
     //    
     // By performing an & here, the 0 sets low, all 1's preserve
     // any previous state.
-    DDRE = DDRE & ~(1<<DDE6);
+    DDRE = DDRE & ~( 1 << DDE6 );
     //DDRE = DDRE & B11111011; // Same as above. 
 
     // We need to enable the pull up resistor for the pin
     // To do this, once a pin is set to input (as above)
     // You write a 1 to the bit in the output register
-    PORTE = PORTE | (1<< PORTE2 );
+    PORTE = PORTE | ( 1 << PORTE2 );
     //PORTE = PORTE | 0B00000100;
 
     // Encoder0 uses conventional pin 26
@@ -241,13 +241,13 @@ void setupEncoder0() {
     // PCICR &= B11111110;  // Same as above
     
     // 11.1.7 Pin Change Mask Register 0 – PCMSK0
-    PCMSK0 |= (1 << PCINT4);
+    PCMSK0 |= ( 1 << PCINT4 );
     
     // Page 91, 11.1.6 Pin Change Interrupt Flag Register – PCIFR
-    PCIFR |= (1 << PCIF0);  // Clear its interrupt flag by writing a 1.
+    PCIFR |= ( 1 << PCIF0 );  // Clear its interrupt flag by writing a 1.
 
     // Enable
-    PCICR |= (1 << PCIE0);
+    PCICR |= ( 1 << PCIE0 );
 }
 
 // Routine to setupt timer3 to run 
@@ -264,12 +264,12 @@ void setupTimer3() {
   // First, turn on CTC mode.  Timer3 will count up
   // and create an interrupt on a match to a value.
   // See table 14.4 in manual, it is mode 4.
-  TCCR3B = TCCR3B | (1 << WGM32);
+  TCCR3B = TCCR3B | ( 1 << WGM32 );
 
   // For a cpu clock precaler of 256:
   // Shift a 1 up to bit CS32 (clock select, timer 3, bit 2)
   // Table 14.5 in manual. 
-  TCCR3B = TCCR3B | (1 << CS32);
+  TCCR3B = TCCR3B | ( 1 << CS32 );
 
 
   // set compare match register to desired timer count.
@@ -281,7 +281,7 @@ void setupTimer3() {
   OCR3A = 62500 / TIMER_FREQ;
 
   // enable timer compare interrupt:
-  TIMSK3 = TIMSK3 | (1 << OCIE3A);
+  TIMSK3 = TIMSK3 | ( 1 << OCIE3A );
 
   // enable global interrupts:
   sei();

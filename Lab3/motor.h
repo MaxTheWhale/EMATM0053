@@ -21,11 +21,8 @@ class motor_c {
     void setPower( int power );
 };
 
-// Constructor: when you create an instance
-// of this class, your constructor will be
-// called automatically.  You can treat it 
-// a bit like the main setup().  What needs
-// to be setup initially within this class?
+// The constructor assigns the pins and sets
+// them as outputs.
 motor_c::motor_c( int which_pin_pwm, int which_pin_dir ) {
   pin_pwm = which_pin_pwm;
   pin_dir = which_pin_dir;
@@ -34,13 +31,14 @@ motor_c::motor_c( int which_pin_pwm, int which_pin_dir ) {
 }
 
 void motor_c::setPower( int power ) {
-  if (power > 255 || power < -255) {
-    Serial.println("motor_c::setPower: bad power value");
+
+  if ( power > 255 || power < -255 ) {
+    Serial.println( "motor_c::setPower: bad power value" );
     return;
   }
   
-  int dir = (power < 0) ? DIR_BWD : DIR_FWD;
-  if (power < 0) power = -power;
+  int dir = ( power < 0 ) ? DIR_BWD : DIR_FWD;
+  if ( power < 0 ) power = -power;
   
   digitalWrite( pin_dir, dir );
   analogWrite( pin_pwm, power );

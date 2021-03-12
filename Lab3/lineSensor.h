@@ -26,15 +26,13 @@ class lineSensor_c {
     };
 
 
-    // Write your calibration routine here
-    // to remove bias offset
+    // This calibrates the line sensor so that
+    // the material currently under it is at 0.
     void calibrate() {
       float value = 0;
 
-      // To help get you started, we use 
-      // the pin set/recorded by the 
-      // constructor to do an analogRead.
-      for (int i = 0; i < 100; i++) {
+      // We do 100 readings and take an average.
+      for ( int i = 0; i < 100; i++ ) {
         value += analogRead( pin ); 
       }
       
@@ -51,11 +49,11 @@ class lineSensor_c {
     }
 
 
-    // Write a routine here to check if your
-    // sensor is on a line (true or false).
+    // Checks if the sensor is currently
+    // on a line.
     boolean onLine() {
 
-      if (this->read() > LINE_THRESHOLD) {
+      if ( this->read() > LINE_THRESHOLD ) {
           return true;
       }
              

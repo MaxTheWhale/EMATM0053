@@ -4,10 +4,10 @@
 class PID_c {
   public:
 
-    PID_c(float P, float I, float D);               // Constructor, not order of P I & D arguments when calling.
-    void setGains(float P, float I, float D);       // This function updates the values of the gains
-    void reset();                                   // Useful to remove any intergral wind-up
-    float update(float demand, float measurement);  // This update takes a demand and measurement.
+    PID_c( float P, float I, float D );              // Constructor, not order of P I & D arguments when calling.
+    void setGains( float P, float I, float D );      // This function updates the values of the gains
+    void reset();                                    // Useful to remove any intergral wind-up
+    float update( float demand, float measurement ); // This update takes a demand and measurement.
 
     void printComponents(); //This function prints the individual components of the control signal and can be used for debugging
 
@@ -20,16 +20,16 @@ class PID_c {
     */
   private:
 
-    //Control gains
-    float Kp; //Proportional
-    float Ki; //Integral
-    float Kd; //Derivative
+    // Control gains
+    float Kp; // Proportional
+    float Ki; // Integral
+    float Kd; // Derivative
 
 
     //Values to store
     float output_signal       = 0;
-    float last_error          = 0; //For calculating the derivative term
-    float integral_error      = 0; //For storing the integral of the error
+    float last_error          = 0; // For calculating the derivative term
+    float integral_error      = 0; // For storing the integral of the error
     unsigned long last_millis = 0;
 
 };
@@ -38,10 +38,10 @@ class PID_c {
    Class constructor
    This runs whenever we create an instance of the class
 */
-PID_c::PID_c(float P, float I, float D)
+PID_c::PID_c( float P, float I, float D )
 {
   //Store the gains
-  setGains(P, I, D);
+  setGains( P, I, D );
   //Set last_millis
   reset();
 }
@@ -53,13 +53,13 @@ PID_c::PID_c(float P, float I, float D)
 */
 void PID_c::printComponents() {
 
-  Serial.print(Kp_output);
-  Serial.print(", ");
-  Serial.print(Kd_output);
-  Serial.print(", ");
-  Serial.print(Ki_output);
-  Serial.print(", ");
-  Serial.println(output_signal);
+  Serial.print( Kp_output );
+  Serial.print( ", " );
+  Serial.print( Kd_output );
+  Serial.print( ", " );
+  Serial.print( Ki_output );
+  Serial.print( ", " );
+  Serial.println( output_signal );
   
 }
 
@@ -76,7 +76,7 @@ void PID_c::reset() {
 /*
    This function sets the gains of the PID controller
 */
-void PID_c::setGains(float P, float I, float D) {
+void PID_c::setGains( float P, float I, float D ) {
   Kp = P;
   Kd = D;
   Ki = I;
@@ -89,9 +89,9 @@ void PID_c::setGains(float P, float I, float D) {
    It returns an output; this can be sent directly to the motors,
    or perhaps combined with other control outputs
 */
-float PID_c::update(float demand, float measurement) {
+float PID_c::update( float demand, float measurement ) {
   
-  //Calculate how much time (in milliseconds) has 
+  // Calculate how much time (in milliseconds) has 
   // bassed since the last update call
   // Note, we do this in type "long", and then
   // typecast the final result to "float".
@@ -99,25 +99,25 @@ float PID_c::update(float demand, float measurement) {
   long diff_time = time_now - last_millis;
   last_millis = time_now;
   
-  float time_delta = (float)diff_time;
-  if (time_delta == 0.0f) return 0.0f;
+  float time_delta = ( float ) diff_time;
+  if ( time_delta == 0.0f ) return 0.0f;
 
   // Calculate error between demand and measurement.
   float error = demand - measurement;
 
-  //This represents the error derivative
-  float error_delta = (error - last_error) / time_delta;
+  // This represents the error derivative
+  float error_delta = ( error - last_error ) / time_delta;
   last_error = error;
 
   // Integral term.
   integral_error += error;
 
-  //Calculate P,I,D Term contributions.
+  // Calculate P,I,D Term contributions.
   Kp_output = error * Kp;
   Kd_output = error_delta * Kd; 
   Ki_output = integral_error * Ki; 
 
-  //Add the three components to get the total output
+  // Add the three components to get the total output
   output_signal = Kp_output + Kd_output + Ki_output;
 
   // Pass the result back.
